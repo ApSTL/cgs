@@ -36,7 +36,7 @@
     "dist_isl": 3000000,
     "rate_isl": 1,
     "rate_s2g": 1,
-    "msr": false,
+    "msr": true,
     "orbits": [
       {
         "sma": 7130.3,

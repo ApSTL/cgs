@@ -1,0 +1,89 @@
+{
+  "test": false,
+  "plot": false,
+  "debug": true,
+  "simulation": {
+    "duration": 25000,
+    "date_start": 2459659.005,
+    "step_size": 10,
+    "filename": "test_0",
+    "description": "Example as defined in 'Assessing Contact Graph Routing Performance and Reliability in Distributed Satellite Constellations' by Fraire et al. 2017"
+  },
+  "traffic": {
+    "size": 5,
+    "lifetime": 100000000,
+    "priority": 0,
+    "congestion": 0.9
+  },
+  "targets": {
+    "type": "bespoke",
+    "name": "targets",
+    "min_el": 30,
+    "locations": [
+      {"name": "Afghanistan", "lat": 33.833, "lon": 66.025},
+      {"name": "Argentina", "lat": -40.843, "lon": -68.090},
+      {"name": "Australia", "lat": -23.274, "lon": 129.385},
+      {"name": "Bangladesh", "lat": 23.730, "lon": 90.306},
+      {"name": "Brazil", "lat": -10.813, "lon": -55.460},
+      {"name": "Chile", "lat": -53.132, "lon": -70.915},
+      {"name": "Congo", "lat": -0.842, "lon": 15.230},
+      {"name": "Egypt", "lat": 26.756, "lon": 29.860},
+      {"name": "Iraq", "lat": 33.045, "lon": 43.775},
+      {"name": "Kazakhstan", "lat": 44.161, "lon": 79.766},
+      {"name": "Kenya", "lat": 0.577, "lon": 37.839},
+      {"name": "Mali", "lat": 17.357, "lon": -3.527},
+      {"name": "Mongolia", "lat": 46.836, "lon": 103.067},
+      {"name": "Namibia", "lat": -22.150, "lon": 17.177},
+      {"name": "Nepal", "lat": 28.259, "lon": 83.944},
+      {"name": "Nigeria", "lat": 9.560, "lon": 8.077},
+      {"name": "Papua NG", "lat": -6.889, "lon": 146.214},
+      {"name": "Peru", "lat": 3.732, "lon": -73.240},
+      {"name": "Russia", "lat": 50.339, "lon": 127.553},
+      {"name": "Algeria", "lat": 25.808, "lon": 10.021},
+      {"name": "Sudan", "lat": 16.085, "lon": 30.087},
+      {"name": "Suriname", "lat": 4.217, "lon": -55.889},
+      {"name": "Bolivia", "lat": -21.521, "lon": -64.738},
+      {"name": "Vietnam", "lat": 16.940, "lon": 106.816},
+      {"name": "Zambia", "lat": 12.407, "lon": 9.254}
+    ]
+  },
+  "gateways": {
+    "type": "bespoke",
+    "name": "gateways",
+    "min_el": 10,
+    "rate": 0,
+    "locations": [
+      {"name": "Cordoba" ,"lat": -31.524, "lon": -64.463},
+      {"name": "A Springs" ,"lat": -23.758, "lon": 133.883},
+      {"name": "Leolut" ,"lat": 39.908, "lon": 116.42},
+      {"name": "Neustrelitz" ,"lat": 53.329, "lon": 13.07},
+      {"name": "Hartebeesthoek" ,"lat": -25.886, "lon": 27.712},
+      {"name": "JPL (USA)" ,"lat": 34.203, "lon": -118.173}
+    ]
+  },
+  "satellites": {
+    "name": "Walker",
+    "dist_isl": 1000000,
+    "rate_isl": 1,
+    "rate_s2g": 1,
+    "msr": true,
+    "orbits": [
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 0.0, "name": "plane_A_sat_1"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 90.0, "name": "plane_A_sat_2"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 180.0, "name": "plane_A_sat_3"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 270.0, "name": "plane_A_sat_4"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 90.0, "aop": 0.0, "ta": 22.626, "name": "plane_B_sat_1"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 90.0, "aop": 0.0, "ta": 112.626, "name": "plane_B_sat_2"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 90.0, "aop": 0.0, "ta": 202.626, "name": "plane_B_sat_3"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 90.0, "aop": 0.0, "ta": 292.626, "name": "plane_B_sat_4"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 180.0, "aop": 0.0, "ta": 45.245, "name": "plane_C_sat_1"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 180.0, "aop": 0.0, "ta": 135.245, "name": "plane_C_sat_2"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 180.0, "aop": 0.0, "ta": 225.245, "name": "plane_C_sat_3"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 180.0, "aop": 0.0, "ta": 315.245, "name": "plane_C_sat_4"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 270.0, "aop": 0.0, "ta": 67.619, "name": "plane_D_sat_1"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 270.0, "aop": 0.0, "ta": 157.619, "name": "plane_D_sat_2"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 270.0, "aop": 0.0, "ta": 247.619, "name": "plane_D_sat_3"},
+      {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 90.0, "aop": 0.0, "ta": 337.619, "name": "plane_D_sat_4"}
+    ]
+  }
+}

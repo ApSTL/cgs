@@ -369,7 +369,7 @@ def cgr_dijkstra(root_contact, destination, contact_plan, deadline=sys.maxsize, 
                 continue
 
             # TODO This is new, triple check I'm right here
-            transfer_time = contact.rate * size
+            transfer_time = size / contact.rate
             if contact.end <= current.arrival_time + transfer_time:
                 continue
 

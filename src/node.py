@@ -33,7 +33,7 @@ class Node:
     uid: int
     scheduler: Scheduler = None
     buffer: Buffer = field(default_factory=lambda: Buffer())
-    outbound_queues: Dict = field(default_factory=dict)
+    outbound_queue: Dict = field(default_factory=dict)
     contact_plan: List = field(default_factory=list)
     contact_plan_targets: List = field(default_factory=list)
     request_duplication: bool = False
@@ -252,12 +252,11 @@ class Node:
 
             # If we don't have any bundles waiting in the current neighbour's outbound
             # queue, we can just wait a bit and try again later
-            if not self.outbound_queues[contact.to]:
+            if not self.outbound_queue[contact.to]:
                 yield env.timeout(self._outbound_repeat_interval)
                 continue
 
-            bundle = self.outbound_queues[contact.to].pop(0)
-            self._outbound_queue_all.remove(bundle)
+            bundle = self._pop_from_outbound_queue(contact.to)
             send_time = bundle.size / contact.rate
             # Check that there's a sufficient amount of time remaining in the contact
             if contact.end - env.now < send_time:
@@ -386,6 +385,11 @@ class Node:
 
         pub.sendMessage("bundle_forwarded")
         self.buffer.append(bundle)
+        # TODO it may be good to invoke the bundle assignment here, because otherwise
+        #  we're perhaps waiting until the next time step, since this event muight
+        #  happen after this node has invoked its own bundle assignment for this
+        #  time-step. However, that is a realistic scenario if, indeed BA is only
+        #  triggered at those regular intervals.
 
     # *** ROUTE SELECTION, BUNDLE ENQUEUEING AND RESOURCE CONSIDERATION ***
     def bundle_assignment_controller(self, env):
@@ -422,8 +426,7 @@ class Node:
                     # TODO there's a chance that this route won't be feasible in
                     #  terms of resources, such that we reduce them to below zero.
                     #  How to handle this...
-                    self.outbound_queues[next_hop.to].append(b)
-                    self._outbound_queue_all.append(b)
+                    self._append_to_outbound_queue(b, next_hop.to)
                     hops = []
                     for hop in b.route:
                         hops.append(self._contact_plan_dict[hop])
@@ -432,13 +435,13 @@ class Node:
                 else:
                     if DEBUG:
                         print(f"Bundle not able to traverse its MSR route on {self.uid}"
-                              f"at {t_now}")
+                              f" at {t_now}")
                     b.route = []
                     b.obey_route = False
 
             candidates = candidate_routes(
                 t_now, self.uid, self.contact_plan, b, self.route_table[b.dst], [],
-                self.outbound_queues
+                self.outbound_queue
             )
 
             for route in candidates:
@@ -475,8 +478,7 @@ class Node:
                 # b.base_route = [int(x.uid) for x in route.hops]
 
                 # Add the bundle to the outbound queue for the bundle's "next node"
-                self.outbound_queues[route.hops[0].to].append(b)
-                self._outbound_queue_all.append(b)
+                self._append_to_outbound_queue(b, route.hops[0].to)
 
                 # Update the resources on the selected route
                 self._contact_resource_update(route.hops, b.size, b.priority)
@@ -504,10 +506,29 @@ class Node:
         This process will also result in resources that were originally assigned for
         the movement of this bundle, to be replenished so that they are not double-counted
         """
-        while self.outbound_queues[to]:
-            bundle = self.outbound_queues[to].pop()
-            self._outbound_queue_all.append(bundle)
+        while self.outbound_queue[to]:
+            bundle = self._pop_from_outbound_queue(to)
             self._return_bundle_to_buffer(bundle)
+
+    def _append_to_outbound_queue(self, bundle: Bundle, to: int) -> None:
+        """Add a bundle to an outbound queue.
+
+        Args:
+            bundle: Bundle object to be added to OBQ
+            to: Node to which this bundle is to be sent
+        """
+        self.outbound_queue[to].append(bundle)
+        self._outbound_queue_all.append(bundle)
+
+    def _pop_from_outbound_queue(self, to: int) -> Bundle:
+        """Extract a bundle from the Outbound Queue.
+
+        Args:
+            to: Node to which this bundle is destined for transmission
+        """
+        bundle = self.outbound_queue[to].pop(0)
+        self._outbound_queue_all.remove(bundle)
+        return bundle
 
     def _return_bundle_to_buffer(self, bundle):
         if bundle.route:
@@ -540,8 +561,8 @@ class Node:
     def _contact_over_booking(self) -> None:
         """Return bundles to the buffer until no over-booked contacts.
 
-        While we're over-booked on at least one contact, pop bundles from the list of
-        that have been assigned already and add, if they use at least one of the
+        While we're over-booked on at least one contact, pop bundles from the list of Bs
+        that have been assigned already and, if they use at least one of the
         over-booked contacts, add them back into the Buffer. This will replenish
         resources on each of the contacts to which the bundle was assigned. Once no
         over-booked contacts exist, add the bundles that were popped, but not returned
@@ -559,7 +580,7 @@ class Node:
         while any([min(c.mav) < 0 for c in overbooked_contacts]):
             bundle = self._outbound_queue_all.pop()
             if set(bundle.route) & set([x.uid for x in overbooked_contacts]):
-                self.outbound_queues[self._contact_plan_dict[bundle.route[0]].to].remove(bundle)
+                self.outbound_queue[self._contact_plan_dict[bundle.route[0]].to].remove(bundle)
                 self._return_bundle_to_buffer(bundle)
             else:
                 return_to_obq.append(bundle)
