@@ -169,17 +169,38 @@ class Node:
                 env.process(self._node_contact_procedure(env, next_contact))
 
     def _target_contact_procedure(self, t_now, target):
-        """
-        Procedure to follow if we're in contact w/ a Target node
+        """Procedure to follow if we're in contact w/ a Target node.
+
+        Essentially, we need to check whether there's a "pending" task for pickup from
+        the target with whom we're in contact and, if there's an assignee (and by
+        association a pick-up time) the ID matches ours
         """
         for task_id, task in self.task_table.items():
-            if task.pickup_time == t_now and task.target == target:
-                # If there's insufficient buffer capacity to complete the task,
-                # set the task to "redundant" so it can be rescheduled
-                if self.buffer.capacity_remaining < task.size:
+            # If the task's target is not the node we're in contact with, skip
+            if task.target != target:
+                continue
+            # If the task has been assigned to a specific node, but that node is not
+            # this node, skip
+            if task.assignee and task.assignee != self.uid:
+                continue
+            # If the task has a scheduled pickup time that differs from the current
+            # time, skip
+            if task.pickup_time and task.pickup_time != t_now:
+                continue
+
+            # If there's insufficient buffer capacity to complete the task, and the
+            # task has been scheduled to be acquired by us, at this time, set the task
+            # to "redundant" so it can be rescheduled. Otherwise, just skip so that it
+            # can perhaps be handled later, if still pending
+            if self.buffer.capacity_remaining < task.size:
+                if task.assignee and task.assignee == self.uid and task.pickup_time and\
+                        task.pickup_time == t_now:
                     task.status = "redundant"
-                    continue
-                self._acquire_bundle(t_now, task)
+                continue
+
+            # Otherwise, pick up the bundle :)
+            self._acquire_bundle(t_now, task)
+            task.acquired(t_now, self.uid)
 
     def _acquire_bundle(self, t_now, task):
         bundle_lifetime = min(task.deadline_delivery, t_now + task.lifetime)
@@ -200,7 +221,6 @@ class Node:
         if task.del_path and self.msr:
             bundle.route = task.del_path
         pub.sendMessage("bundle_acquired", b=bundle)
-        task.status = "acquired"
 
     def _node_contact_procedure(self, env, contact):
         """
@@ -268,7 +288,8 @@ class Node:
             )
 
             if contact.to == bundle.dst and self.task_table:
-                self.task_table[bundle.task_id].status = "delivered"
+
+                self.task_table[bundle.task_id].delivered(env.now, self.uid, contact.to)
                 self._task_table_updated = True
 
             # Wait until the bundle has been sent (note it may not have

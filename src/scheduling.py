@@ -42,7 +42,7 @@ class Request:
 class Task:
     """
     Args:
-        _status: Options include: "pending", "acquired", "redundant", "re-scheduled",
+        status: Options include: "pending", "acquired", "redundant", "rescheduled",
             "delivered" or "failed"
     """
     deadline_acquire: int = sys.maxsize
@@ -61,39 +61,28 @@ class Task:
     del_path: List = field(default_factory=list)
     request_ids: List = field(default_factory=list)
 
-    _acquired_at: int | float = field(init=False, default=None)
-    _delivered_at: int | float = field(init=False, default=None)
-    _status: str = field(init=False, default="pending")
+    acquired_at: int | float = field(init=False, default=None)
+    acquired_by: int = field(init=False, default=None)
+    delivered_at: int | float = field(init=False, default=None)
+    delivered_by: int = field(init=False, default=None)
+    delivered_to: int = field(init=False, default=None)
+    status: str = field(init=False, default="pending")
     __uid: str = field(init=False, default_factory=lambda: id_generator())
 
     @property
     def uid(self):
         return self.__uid
 
-    @property
-    def status(self):
-        return self._status
+    def acquired(self, t, by):
+        self.status = "acquired"
+        self.acquired_at = t
+        self.acquired_by = by
 
-    @status.setter
-    def status(self, value):
-        """
-        Options are:
-        - "pending"
-        - "acquired"
-        - "delivered"
-        - "redundant" if this task needs rescheduling
-        - "rescheduled" if this task has now been rescheduled
-        - "failed"
-        """
-        self._status = value
-
-    @property
-    def acquired_at(self):
-        return self._acquired_at
-
-    @acquired_at.setter
-    def acquired_at(self, v):
-        self._acquired_at = v
+    def delivered(self, t, by, to):
+        self.status = "delivered"
+        self.delivered_at = t
+        self.delivered_by = by
+        self.delivered_to = to
 
     def __lt__(self, other):
         """Order Tasks based on their status value
@@ -122,8 +111,35 @@ class Task:
 class Scheduler:
     """The Scheduler is an object that enables a node to carry out Contact Graph
     Scheduling operations. I.e. it can schedule tasks in response to requests, based on
-    a certain Contact Plan"""
+    a certain Contact Plan
+
+    Args:
+        parent: The Node object on which this Scheduler is located
+        valid_pickup: If true, valid pickup (i.e. before deadline) must exist
+        valid_delivery: If true, valid delivery (i.e. before deadline) must exist.
+            Note: cannot be true valid_pickup is not True
+        define_pickup: If true, pickup (acquisition) information is defined on the Task
+        define_delivery: If true, delivery information (route) is defined on the Task
+    """
     parent = None
+    valid_pickup: bool = True
+    valid_delivery: bool = True
+    define_pickup: bool = True
+    define_delivery: bool = True
+    resource_aware: bool = True
+
+    def __post_init__(self):
+        # Need to make sure we're not defining a need to specify pickup or delivery
+        # information if we're not required to check valid routes.
+        if not self.valid_pickup:
+            self.valid_delivery = False
+            self.define_pickup = False
+            self.resource_aware = False
+        if not self.valid_delivery:
+            self.define_delivery = False
+            self.resource_aware = False
+        if not self.define_delivery:
+            self.resource_aware = False
 
     def schedule_task(self, request: Request, curr_time: int, contact_plan: list,
                       contact_plan_targets: list) -> Task | None:
@@ -153,8 +169,29 @@ class Scheduler:
         #  available, but in the more general case we're more likely to simply have a
         #  target location with which we need to evaluate (in real time) contact
         #  opportunities
+
+        # If we're not checking for a valid pickup opportunity, then we can simply
+        # create a task without any assignments
+        if not self.valid_pickup:
+            return self._create_task(request, curr_time)
+
+        # Add target contacts to the Contact Plan
         contact_plan.extend([c for c in contact_plan_targets if c.to == request.target_id])
 
+        # If we need to check for a valid pickup, but NOT for a valid delivery,
+        # we can just do a Dijkstra search to the first pick-up opportunity
+        if not self.valid_delivery:
+            root = Contact(self.parent.uid, self.parent.uid, curr_time, sys.maxsize, sys.maxsize)
+            root.arrival_time = curr_time
+            acq_path = cgr_dijkstra(root, request.target_id, contact_plan, request.deadline_acquire)
+            if not acq_path:
+                return None
+
+            assignee = acq_path.hops[-1].frm if self.define_pickup else None
+            return self._create_task(request, curr_time, assignee)
+
+        # If we've reached here, then we must need to check for both a valid
+        # acquisition AND a valid delivery, so execute CGS to ensure this.
         acq_path, del_path = self._cgs_routing(self.parent.uid, request, curr_time,
                                                contact_plan)
 
@@ -166,31 +203,29 @@ class Scheduler:
         ]
 
         if acq_path and del_path:
-            for hop in del_path.hops:
-                hop.volume -= request.data_volume
+            if self.resource_aware:
+                for hop in del_path.hops:
+                    hop.volume -= request.data_volume
 
-            parent = self.parent.uid if self.parent else None
+            if not self.define_pickup:
+                assignee = None
+                pickup_time = None
+                acq_path_ = None
+            else:
+                assignee = del_path.hops[0].frm
+                pickup_time = acq_path.best_delivery_time
+                acq_path_ = [x.uid for x in acq_path.hops]
 
-            task = Task(
-                deadline_acquire=request.deadline_acquire,
-                deadline_delivery=request.deadline_deliver,
-                lifetime=request.bundle_lifetime,
-                target=request.target_id,
-                priority=request.priority,
-                destination=request.destination,
-                size=request.data_volume,
-                assignee=del_path.hops[0].frm,
-                scheduled_at=curr_time,
-                scheduled_by=parent,
-                pickup_time=acq_path.best_delivery_time,
-                delivery_time=del_path.best_delivery_time,
-                acq_path=[x.uid for x in acq_path.hops],
-                del_path=[x.uid for x in del_path.hops]
-            )
+            if not self.define_delivery:
+                delivery_time = None
+                del_path_ = None
+            else:
+                delivery_time = del_path.best_delivery_time
+                del_path_ = [x.uid for x in del_path.hops]
 
-            task.request_ids.append(request.uid)
-            pub.sendMessage("task_add", t=task)
-            return task
+            return self._create_task(
+                request, curr_time, assignee, pickup_time, delivery_time, acq_path_,
+                del_path_)
 
         else:
             # If no assignee has been identified, then it means there's no feasible way
@@ -202,7 +237,7 @@ class Scheduler:
             pub.sendMessage("request_fail")
             return
 
-    def _cgs_routing(self, root: int, request: Request, curr_time: int, contact_plan
+    def _cgs_routing(self, src: int, request: Request, curr_time: int, contact_plan
                      ) -> tuple:
         """
         Find the acquisition and delivery paths such that the data is delivered at the
@@ -219,7 +254,7 @@ class Scheduler:
         -- If a delivery route is found:
         ---- add the acquisition-delivery route pair to the list of potential paths
         ---------------------------------------------------------------------------------
-        :param root: ID of the starting Contact going from/to source node (self)
+        :param src: ID of the starting Contact going from/to source node (self)
         :param request: Request object defining the target node ID, deadlines, etc
         :return:
         """
@@ -234,7 +269,7 @@ class Scheduler:
 
         # Root contact is the connection to self that acts as the source vertex in the
         # Contact Graph
-        root = Contact(root, root, curr_time, sys.maxsize, sys.maxsize)
+        root = Contact(src, src, curr_time, sys.maxsize, sys.maxsize)
         root.arrival_time = curr_time
 
         while True:
@@ -283,11 +318,30 @@ class Scheduler:
                 path_acq_selected = path_acq
                 path_del_selected = path_del
 
-        # If we've not been able to find any feasible delivery opportunities, then we
-        # cannot fulfil the task, otherwise, return the selected paths
-        if not path_del_selected:
-            return None, None
         return path_acq_selected, path_del_selected
+
+    def _create_task(self, request, t_now, assignee=None, pickup_time=None,
+                     delivery_time=None, acq_path_=None, del_path_=None) -> Task:
+        task = Task(
+            deadline_acquire=request.deadline_acquire,
+            deadline_delivery=request.deadline_deliver,
+            lifetime=request.bundle_lifetime,
+            target=request.target_id,
+            priority=request.priority,
+            destination=request.destination,
+            size=request.data_volume,
+            assignee=assignee,
+            scheduled_at=t_now,
+            scheduled_by=self.parent.uid,
+            pickup_time=pickup_time,
+            delivery_time=delivery_time,
+            acq_path=acq_path_,
+            del_path=del_path_
+        )
+
+        task.request_ids.append(request.uid)
+        pub.sendMessage("task_add", t=task)
+        return task
 
     @staticmethod
     def _suppress_contacts_from_node(node_from, node_to, contact_plan):
