@@ -319,7 +319,7 @@ class Node:
             # method on the receiving node
             pub.sendMessage(
                 str(to) + "bundle",
-                t_now=env.now, bundle=deepcopy(self.task_table), is_task_table=True
+                t_now=env.now, bundle=self.task_table, is_task_table=True
             )
             break
 
