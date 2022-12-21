@@ -34,7 +34,7 @@ def init_nodes(nodes, cp):
 		n = Node(
 			n_uid,
 			buffer=Buffer(NODE_BUFFER_CAPACITY),
-			outbound_queues={x: [] for x in range(1, len(nodes) + 1)},
+			outbound_queue={x: [] for x in range(1, len(nodes) + 1)},
 			contact_plan=deepcopy(cp),
 		)
 		# Subscribe to any published messages that indicate a bundle has been sent to

@@ -12,7 +12,7 @@ class TestContactOverbooking(unittest.TestCase):
 		self.node1 = Node(1, contact_plan=contact_plan)
 		for n in [2, 3]:
 			self.node1.route_table[n] = cgr_yens(1, n, 0, 5, contact_plan)
-			self.node1.outbound_queues[n] = []
+			self.node1.outbound_queue[n] = []
 
 		self.bundle_lp1 = Bundle(1, 3, size=1, priority=0, created_at=0)
 		self.bundle_lp2 = Bundle(1, 3, size=1, priority=0, created_at=1)
@@ -25,17 +25,17 @@ class TestContactOverbooking(unittest.TestCase):
 		self.node1.buffer.append(self.bundle_lp1)
 		self.node1.buffer.append(self.bundle_lp2)
 		self.node1._bundle_assignment(1)
-		self.assertIn(self.bundle_lp1, self.node1.outbound_queues[2])
-		self.assertIn(self.bundle_lp2, self.node1.outbound_queues[2])
+		self.assertIn(self.bundle_lp1, self.node1.outbound_queue[2])
+		self.assertIn(self.bundle_lp2, self.node1.outbound_queue[2])
 
 		# Next, assign the medium priority bundle, which should result in overbooking
 		# of the contact 1->2 and 2->3, and re-routing of the LP bundles to the direct
 		# contact 1->3
 		self.node1.buffer.append(self.bundle_mp1)
 		self.node1._bundle_assignment(2)
-		self.assertIn(self.bundle_lp1, self.node1.outbound_queues[3])
-		self.assertIn(self.bundle_lp2, self.node1.outbound_queues[3])
-		self.assertIn(self.bundle_mp1, self.node1.outbound_queues[2])
+		self.assertIn(self.bundle_lp1, self.node1.outbound_queue[3])
+		self.assertIn(self.bundle_lp2, self.node1.outbound_queue[3])
+		self.assertIn(self.bundle_mp1, self.node1.outbound_queue[2])
 
 		# finally, assign the high priority (large) bundle, which should be assigned to
 		# the large direct contact, but cause one of the LP bundles to be dropped. It
@@ -43,9 +43,9 @@ class TestContactOverbooking(unittest.TestCase):
 		# effectively the lowest.
 		self.node1.buffer.append(self.bundle_hp1)
 		self.node1._bundle_assignment(3)
-		self.assertIn(self.bundle_lp1, self.node1.outbound_queues[3])
-		self.assertIn(self.bundle_mp1, self.node1.outbound_queues[2])
-		self.assertIn(self.bundle_hp1, self.node1.outbound_queues[3])
+		self.assertIn(self.bundle_lp1, self.node1.outbound_queue[3])
+		self.assertIn(self.bundle_mp1, self.node1.outbound_queue[2])
+		self.assertIn(self.bundle_hp1, self.node1.outbound_queue[3])
 
 		# In terms of the MAV on each contact:
 		#   1->2 began with vol = 2

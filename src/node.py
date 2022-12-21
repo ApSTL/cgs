@@ -47,7 +47,7 @@ class Node:
     task_table: Dict = field(init=False, default_factory=dict)
     drop_list: List = field(init=False, default_factory=list)
     delivered_bundles: List = field(init=False, default_factory=list)
-    _task_table_updated: bool = field(init=False, default=False)
+    _task_table_updated: Dict = field(init=False, default_factory=dict)
     _targets: Set = field(init=False, default_factory=set)
     _contact_plan_self: List = field(init=False, default_factory=list)
     _contact_plan_dict: Dict = field(init=False, default_factory=dict)
@@ -58,6 +58,9 @@ class Node:
         self.update_contact_plan(self.contact_plan, self.contact_plan_targets)
         if self.scheduler:
             self.scheduler.parent = self
+
+        # TODO If the OBQ gets updated after initiation, this will get missed.
+        self._task_table_updated = {n: False for n in self.outbound_queue}
 
     def update_contact_plan(self, cp=None, cp_targets=None):
         if cp:
@@ -125,7 +128,7 @@ class Node:
             if task:
                 request.status = "scheduled"
                 self.task_table[task.uid] = task
-                self._task_table_updated = True
+                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
 
     def _task_already_servicing_request(self, request: Request) -> Task | None:
         """Returns True if the request is already handled by an existing Task.
@@ -234,7 +237,7 @@ class Node:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the
             # neighbour
-            if self._task_table_updated:
+            if self._task_table_updated[contact.to]:
                 env.process(self._task_table_send(
                         env,
                         contact.to,
@@ -246,7 +249,7 @@ class Node:
                 #  through an update such that this flag goes true, if we then
                 #  immediately respond to that node with the updated TT, we'll not get
                 #  the trigger to send to the other neighbour.
-                self._task_table_updated = False
+                self._task_table_updated[contact.to] = False
                 yield env.timeout(0)
                 continue
 
@@ -289,7 +292,7 @@ class Node:
             if contact.to == bundle.dst and self.task_table:
 
                 self.task_table[bundle.task_id].delivered(env.now, self.uid, contact.to)
-                self._task_table_updated = True
+                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
 
             # Wait until the bundle has been sent (note it may not have
             # been fully received at this time, due to the OWLT, but that's
@@ -376,7 +379,7 @@ class Node:
             self.delivered_bundles.append(bundle)
             if self.task_table:
                 self.task_table[bundle.task_id].status = "delivered"
-                self._task_table_updated = True
+                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
             return
 
         if DEBUG:
@@ -600,4 +603,4 @@ class Node:
                 if not self.task_table[task_id] < task:
                     continue
             self.task_table[task_id] = deepcopy(task)
-            self._task_table_updated = True
+            self._task_table_updated = dict.fromkeys(self._task_table_updated, True)

@@ -58,7 +58,7 @@ class MyTestCase(unittest.TestCase):
 		cpt = init_contact_plan_targets(node1.uid, node2.uid)
 		for node in self.nodes:
 			node.update_contact_plan(deepcopy(cp), deepcopy(cpt))
-			node.outbound_queues = {x.uid: [] for x in self.nodes if x.uid != node.uid}
+			node.outbound_queue = {x.uid: [] for x in self.nodes if x.uid != node.uid}
 			pub.subscribe(node.bundle_receive, str(node.uid) + "bundle")
 			for n_ in [x for x in [scheduler.uid, node1.uid, node2.uid] if x != node.uid]:
 				node.route_table[n_] = cgr_yens(
