@@ -257,7 +257,7 @@ def setup_ground_nodes(jd_start, duration, t_step, nodes, is_source=False, id_co
     locations = []
     if nodes["type"] == "bespoke":
         for loc in nodes["locations"]:
-            locations.append([loc["lat"], loc["lon"], loc["alt"]])
+            locations.append([loc["lat"], loc["lon"], loc.get("alt", 0)])
 
     elif nodes["type"] == "group":
         if nodes["distribution"] == "even":

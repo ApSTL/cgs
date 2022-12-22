@@ -10,7 +10,7 @@ import numpy as np
 import time
 import pickle
 
-from routing import Contact
+from src.routing import Contact
 
 
 R_E = 6371000.8
@@ -582,3 +582,18 @@ def cp_load(file_name, max_contacts=None):
     print('Load contact plan: %s contacts were read.' % len(__contact_plan))
     print(__contact_plan)
     return __contact_plan
+
+
+def ground_nodes_load(file_name):
+    nodes = []
+    with open(file_name, "r") as nodes_from_file:
+        for node in nodes_from_file.readlines():
+            node_items = node.split(" ")
+            nodes.append(
+                {
+                    "name": node_items[0],
+                    "lat": float(node_items[1]),
+                    "lon": float(node_items[2])
+                }
+            )
+    return nodes

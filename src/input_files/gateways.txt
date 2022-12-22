@@ -1,0 +1,6 @@
+Cordoba -31.524 -64.463 1
+A.Springs -23.758 133.883 2
+Leolut 39.908 116.42 3
+Neustrelitz 53.329 13.07 4
+Hartebeesthoek -25.886 27.712 5
+JPL(USA) 34.203 -118.173 6
