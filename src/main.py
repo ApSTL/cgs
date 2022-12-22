@@ -110,7 +110,7 @@ def init_space_nodes(nodes, cp, cpwt, msr=True):
 	return node_list
 
 
-def create_route_tables(nodes, destinations, t_now=0, num_routes_per_pair=10) -> None:
+def create_route_tables(nodes, destinations, t_now=0, num_routes_per_pair=100) -> None:
 	"""
 	Route Table creation - Invokes Yen's CGR algorithm to discover routes between
 	node-pairs, stores them in a dictionary and updates the route table on each node
@@ -196,6 +196,26 @@ def get_download_capacity(contact_plan, sinks, sats):
 	return total
 
 
+def get_data_rate_pairs(sats, gws, s2s, s2g, g2s):
+	nodes = [*satellites, *gateways]
+	rate_pairs = {}
+	for n1 in nodes:
+		rate_pairs[n1] = {}
+		for n2 in [x for x in nodes if x != n1]:
+			if n1 in sats:
+				if n2 in sats:
+					rate = s2s
+				else:
+					rate = s2g
+			elif n1 in gws:
+				if n2 in sats:
+					rate = g2s
+				else:
+					rate = sys.maxsize
+			rate_pairs[n1][n2] = rate
+	return rate_pairs
+
+
 if __name__ == "__main__":
 	"""
 	Contact Graph Scheduling implementation
@@ -227,6 +247,14 @@ if __name__ == "__main__":
 	)
 	print("Node propagation complete")
 
+	rates = get_data_rate_pairs(
+		[*satellites],
+		[*gateways],
+		inputs["satellites"]["rate_isl"],
+		inputs["satellites"]["rate_s2g"],
+		inputs["gateways"]["rate"]
+	)
+
 	# Get Contact Plan from the relative mobility between satellites, targets (sources)
 	# and gateways (sinks)
 	cp = review_contacts(
@@ -234,7 +262,8 @@ if __name__ == "__main__":
 		{**satellites, **targets, **gateways},
 		satellites,
 		gateways,
-		targets
+		targets,
+		rates
 	)
 	print("Contact Plans built")
 

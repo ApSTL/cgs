@@ -15,7 +15,7 @@ from spaceNetwork import Spacecraft, GroundNode
 from routing import Contact
 
 
-def review_contacts(all_times, all_nodes, satellites, gateways, targets=None):
+def review_contacts(all_times, all_nodes, satellites, gateways, targets=None, rates=None):
     """
     Given a set of satellites, gateways (destinations) and targets (sources), identify
     the contacts and return a contact plan (list of Contact objects)
@@ -37,7 +37,7 @@ def review_contacts(all_times, all_nodes, satellites, gateways, targets=None):
     cs_ = init_contact_schedule(cs)
 
     # Build the Contact Plan and Network Resource Model
-    cp = build_contact_plan(cs_)
+    cp = build_contact_plan(cs_, rates)
     cp.sort()
     return cp
 
@@ -167,8 +167,9 @@ def build_contact_schedule(nodes, edges):
     Construct a dict containing information about each contact between
     nodes in the network. Each key in the dict is a time, with a value representing the
     list of contacts that begin at that time, and the value is the
-    contact attributes, such as the nodes involved, the duration and the
-    total data transfer capacity
+    contact attributes, such as the nodes involved and the duration of the contact.
+    Transfer rate is not included, since this can be added in later, based on the nodes
+    involved
     :param nodes:
     :param edges:
     :return:
@@ -350,7 +351,7 @@ def init_contact_schedule(edges):
     return cs
 
 
-def build_contact_plan(cs):
+def build_contact_plan(cs, rate_pairs):
     """
     Return a table (pandas Dataframe) of contact opportunity
     :param cs:
@@ -361,12 +362,20 @@ def build_contact_plan(cs):
     contacts = []
     for t, dg in cs.items():
         for edge in dg:
+            if edge["from"] in rate_pairs and edge["to"] in rate_pairs:
+                rate = rate_pairs[edge["from"]][edge["to"]]
+            else:
+                # FIXME This is required for contacts to the Target nodes, and it's 1
+                #  to avoid a divide by zero in the cgr_dijkstra code where we look at
+                #  the transfer time. Is there a better way to handle this?
+                rate = 1
             contacts.append(
                 Contact(
                     edge["from"],
                     edge["to"],
                     edge["time"],
                     edge["time"] + edge["duration"],
+                    rate=rate,
                     owlt=edge["owlt"]
                 )
             )

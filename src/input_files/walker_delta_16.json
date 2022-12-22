@@ -51,7 +51,7 @@
     "type": "bespoke",
     "name": "gateways",
     "min_el": 10,
-    "rate": 0,
+    "rate": 1,
     "locations": [
       {"name": "Cordoba" ,"lat": -31.524, "lon": -64.463},
       {"name": "A Springs" ,"lat": -23.758, "lon": 133.883},
