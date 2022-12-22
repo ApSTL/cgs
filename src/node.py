@@ -412,7 +412,9 @@ class Node:
         not available shall be dropped from the buffer.
         :return:
         """
+        new_bundles_assigned = False
         while not self.buffer.is_empty():
+            new_bundles_assigned = True
             assigned = False
             b = self.buffer.extract()
 
@@ -499,9 +501,10 @@ class Node:
 
         # Check for any over-booking of contacts and, if required, carry out the bundle
         # assignment again for any bundles that have been put back into the Buffer
-        self._contact_over_booking()
-        if not self.buffer.is_empty():
-            self._bundle_assignment(t_now)
+        if new_bundles_assigned:
+            self._contact_over_booking()
+            if not self.buffer.is_empty():
+                self._bundle_assignment(t_now)
 
     def _return_outbound_queue_to_buffer(self, to):
         """Return the contents of the outbound queue to the buffer.

@@ -57,7 +57,7 @@ def requests_generator(env, sources, sinks, moc, inter_arrival_time, size, prior
 		source = random.choice([s for s in sources.values()])
 		request = Request(
 			source.uid,
-			destination=random.choice(sinks),  # random.choice(nodes),
+			destination=random.choice(sinks),
 			data_volume=size,
 			priority=priority,
 			bundle_lifetime=ttl,
@@ -89,14 +89,16 @@ def bundle_generator(env, sources, destinations):
 		pub.sendMessage("bundle_acquired", b=b)
 
 
-def init_space_nodes(nodes, targets, cp, cpwt, msr=True):
+def init_space_nodes(nodes, cp, cpwt, msr=True):
 	node_ids = [x for x in nodes]
+	# TODO more generalised way to do this??
+	node_ids.append(SCHEDULER_ID)
 	node_list = []
 	for n_uid, n in nodes.items():
 		n = Node(
 			n_uid,
 			buffer=Buffer(NODE_BUFFER_CAPACITY),
-			outbound_queues={x: [] for x in node_ids},
+			outbound_queue={x: [] for x in node_ids},
 			contact_plan=deepcopy(cp),
 			contact_plan_targets=deepcopy(cpwt),
 			msr=msr
@@ -104,29 +106,34 @@ def init_space_nodes(nodes, targets, cp, cpwt, msr=True):
 		# n._targets = targets
 		pub.subscribe(n.bundle_receive, str(n_uid) + "bundle")
 		node_list.append(n)
+	print(f"Nodes created, with MSR = {msr}")
 	return node_list
 
 
-def create_route_tables(nodes):
+def create_route_tables(nodes, destinations, t_now=0, num_routes_per_pair=10) -> None:
 	"""
 	Route Table creation - Invokes Yen's CGR algorithm to discover routes between
 	node-pairs, stores them in a dictionary and updates the route table on each node
 	"""
-	for node in nodes:
-		for other in [
-			x for x in nodes if x.uid != node.uid
-		]:
-			node.route_table[other.uid] = cgr_yens(node.uid, other.uid, 0, 100, node.contact_plan)
+	for n in nodes:
+		for d in [x for x in destinations if x != n.uid]:
+			n.route_table[d] = cgr_yens(
+				n.uid,
+				d,
+				t_now,
+				num_routes_per_pair,
+				n.contact_plan
+			)
 
 
-def init_analytics():
+def init_analytics(warm_up=0, cool_down=sys.maxsize):
 	"""The analytics module tracks events that occur during the simulation.
 
 	This includes keeping a log of every request, task and bundle object, and counting
 	the number of times a specific movement is made (e.g. forwarding, dropping,
 	state transition etc).
 	"""
-	a = Analytics()
+	a = Analytics(warm_up, cool_down)
 
 	pub.subscribe(a.submit_request, "request_submit")
 	pub.subscribe(a.fail_request, "request_fail")
@@ -203,7 +210,7 @@ if __name__ == "__main__":
 	# ****************** SPACE NETWORK SETUP ******************
 	# set up the space network nodes (satellites and gateways, and if known in advance,
 	# the targets)
-	filename = "input_files//sim_polar_simple.json"
+	filename = "input_files//walker_delta_16.json"
 	with open(filename, "r") as read_content:
 		inputs = json.load(read_content)
 
@@ -218,6 +225,7 @@ if __name__ == "__main__":
 		sim_epoch, sim_duration, sim_step_size, inputs["targets"], inputs["satellites"],
 		inputs["gateways"]
 	)
+	print("Node propagation complete")
 
 	# Get Contact Plan from the relative mobility between satellites, targets (sources)
 	# and gateways (sinks)
@@ -228,6 +236,7 @@ if __name__ == "__main__":
 		gateways,
 		targets
 	)
+	print("Contact Plans built")
 
 	# ****************** SCHEDULING SPECIFIC PREPARATION ******************
 	# Create a contact plan that ONLY has contacts with target nodes and a contact plan
@@ -241,6 +250,7 @@ if __name__ == "__main__":
 	# be up-to-date in terms of the Task Table
 	for g in gateways:
 		cp.insert(0, Contact(SCHEDULER_ID, g, 0, sim_duration, sys.maxsize))
+		cp.insert(0, Contact(g, SCHEDULER_ID, 0, sim_duration, sys.maxsize))
 
 	# Instantiate the Mission Operations Center, i.e. the Node at which requests arrive
 	# and then set up each of the remote nodes (including both satellites and gateways).
@@ -250,9 +260,10 @@ if __name__ == "__main__":
 		contact_plan=cp,
 		contact_plan_targets=cp_with_targets,
 		scheduler=Scheduler(),
-		outbound_queues={x: [] for x in {**satellites,  **gateways}}
+		outbound_queue={x: [] for x in {**satellites, **gateways}}
 	)
 	moc.scheduler.parent = moc
+	pub.subscribe(moc.bundle_receive, str(SCHEDULER_ID) + "bundle")
 
 	download_capacity = get_download_capacity(
 		cp,
@@ -278,18 +289,27 @@ if __name__ == "__main__":
 		)
 
 	nodes = init_space_nodes(
-		{**satellites,  **gateways}, [*targets], cp, cp_with_targets, inputs[
-			"satellites"]["msr"])
+		{**satellites,  **gateways},
+		cp,
+		cp_with_targets,
+		inputs["satellites"]["msr"]
+	)
 
-	create_route_tables(nodes)
+	# TODO Replace this with locally invoked Route Discovery or central route discovery
+	#  and realistic deployment of the tables through the network
+	create_route_tables(nodes, [moc.uid])
+	print("Route tables constructed")
 
+	analytics = init_analytics(6000, 6000)
+
+	# ************************ BEGIN THE SIMULATION PROCESS ************************
 	# Initiate the simpy environment, which keeps track of the event queue and triggers
 	# the next discrete event to take place
 	env = simpy.Environment()
 	env.process(requests_generator(
 		env,
 		targets,
-		[x for x in gateways],
+		[moc.uid],
 		moc,
 		request_arrival_wait_time,
 		bundle_size,
@@ -310,9 +330,8 @@ if __name__ == "__main__":
 		#  We could actually have something that watches our Route Tables and triggers
 		#  the Route Discovery whenever we drop below a certain number of good options
 
-	analytics = init_analytics(6000, 6000)
-	env.run(until=sim_duration)
-	# cProfile.run('env.run(until=sim_duration)')
+	# env.run(until=sim_duration)
+	cProfile.run('env.run(until=sim_duration)')
 
 	print("*** REQUEST DATA ***")
 	print(f"{analytics.requests_submitted} Requests were submitted")
