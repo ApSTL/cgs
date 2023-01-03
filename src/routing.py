@@ -10,8 +10,9 @@ from typing import List
 class Contact:
     frm: int
     to: int
-    start: int | float
-    end: int | float
+    to_eid: int = None
+    start: int | float = 0.0
+    end: int | float = sys.maxsize
     rate: int | float = 1
     confidence: float = 1.0
     owlt: float = 0.0
@@ -39,6 +40,9 @@ class Contact:
         
         # Priority-specific volume. Index represents priority level, so mav[0] = "bulk"
         self.mav = [self.volume, self.volume, self.volume]
+
+        if not self.to_eid:
+            self.to_eid = self.to
 
     @property
     def uid(self):
@@ -236,7 +240,7 @@ def cgr_yens(src, dest, t_now, num_routes, contact_plan):
 
     # Root contact is the connection to self that acts as the source vertex in the
     # Contact Graph
-    root = Contact(src, src, t_now, sys.maxsize, sys.maxsize)
+    root = Contact(src, src, src, t_now, sys.maxsize, sys.maxsize)
     root.arrival_time = t_now
 
     # reset contacts
@@ -407,7 +411,8 @@ def cgr_dijkstra(root_contact, destination, contact_plan, deadline=sys.maxsize, 
                 contact.visited_nodes.append(contact.to)
 
                 # Mark if destination reached
-                if contact.to == destination and contact.arrival_time < earliest_fin_arr_t:
+                # if contact.to == destination and contact.arrival_time < earliest_fin_arr_t:
+                if contact.to_eid == destination and contact.arrival_time < earliest_fin_arr_t:
                     earliest_fin_arr_t = contact.arrival_time
                     final_contact = contact
 

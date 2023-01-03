@@ -13,12 +13,12 @@ from misc import id_generator
 
 def init_contact_plan(n0, n1, n2):
 	cp = [
-		Contact(n0, n1, 0, 2),
-		Contact(n0, n2, 2, 4),
-		Contact(n1, n2, 13, 15),
-		Contact(n2, n1, 13, 15),
-		Contact(n1, n0, 20, 21),
-		Contact(n2, n0, 25, 28)
+		Contact(n0, n1, n1, 0, 2),
+		Contact(n0, n2, n2, 2, 4),
+		Contact(n1, n2, n2, 13, 15),
+		Contact(n2, n1, n1, 13, 15),
+		Contact(n1, n0, n0, 20, 21),
+		Contact(n2, n0, n0, 25, 28)
 	]
 	return cp
 

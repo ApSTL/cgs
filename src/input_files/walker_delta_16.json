@@ -3,7 +3,7 @@
   "plot": false,
   "debug": true,
   "simulation": {
-    "duration": 10000,
+    "duration": 50000,
     "date_start": 2459659.005,
     "step_size": 10,
     "filename": "test_0",
@@ -13,12 +13,14 @@
     "size": 5,
     "lifetime": 100000000,
     "priority": 0,
-    "congestion": 0.5
+    "congestion": 0.5,
+    "msr": false
   },
   "targets": {
     "type": "bespoke",
     "name": "targets",
     "min_el": 30,
+    "destination": 999999,
     "locations": [
       {"name": "Afghanistan", "lat": 33.833, "lon": 66.025},
       {"name": "Argentina", "lat": -40.843, "lon": -68.090},
@@ -66,7 +68,6 @@
     "dist_isl": 1000000,
     "rate_isl": 1,
     "rate_s2g": 1,
-    "msr": true,
     "orbits": [
       {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 0.0, "name": "plane_A_sat_1"},
       {"sma": 6878.14, "inc": 50.0, "ecc": 0.0, "raan": 0.0, "aop": 0.0, "ta": 90.0, "name": "plane_A_sat_2"},

@@ -181,7 +181,9 @@ class Scheduler:
         # If we need to check for a valid pickup, but NOT for a valid delivery,
         # we can just do a Dijkstra search to the first pick-up opportunity
         if not self.valid_delivery:
-            root = Contact(self.parent.uid, self.parent.uid, curr_time, sys.maxsize, sys.maxsize)
+            root = Contact(
+                self.parent.uid, self.parent.uid, self.parent.eid, curr_time,
+                sys.maxsize, sys.maxsize)
             root.arrival_time = curr_time
             acq_path = cgr_dijkstra(root, request.target_id, contact_plan, request.deadline_acquire)
             if not acq_path:
@@ -269,7 +271,7 @@ class Scheduler:
 
         # Root contact is the connection to self that acts as the source vertex in the
         # Contact Graph
-        root = Contact(src, src, curr_time, sys.maxsize, sys.maxsize)
+        root = Contact(src, src, src, curr_time, sys.maxsize, sys.maxsize)
         root.arrival_time = curr_time
 
         while True:
@@ -290,6 +292,7 @@ class Scheduler:
 
             # Create a root contact from which we can find a delivery path
             root_delivery = Contact(
+                path_acq.hops[-1].frm,
                 path_acq.hops[-1].frm,
                 path_acq.hops[-1].frm,
                 path_acq.best_delivery_time,

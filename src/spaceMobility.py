@@ -373,6 +373,7 @@ def build_contact_plan(cs, rate_pairs):
                 Contact(
                     edge["from"],
                     edge["to"],
+                    edge["to"],  # TODO this is the EID of the receiving node
                     edge["time"],
                     edge["time"] + edge["duration"],
                     rate=rate,

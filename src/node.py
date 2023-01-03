@@ -31,6 +31,7 @@ class Node:
         msr: Flag indicating use of Moderate Source Routing, if possible
     """
     uid: int
+    eid: int = None
     scheduler: Scheduler = None
     buffer: Buffer = field(default_factory=lambda: Buffer())
     outbound_queue: Dict = field(default_factory=dict)
@@ -55,6 +56,9 @@ class Node:
     _outbound_queue_all: List = field(init=False, default_factory=list)
 
     def __post_init__(self) -> None:
+        if not self.eid:
+            self.eid = self.uid
+
         self.update_contact_plan(self.contact_plan, self.contact_plan_targets)
         if self.scheduler:
             self.scheduler.parent = self
@@ -371,7 +375,7 @@ class Node:
 
         bundle.hop_count += 1
 
-        if bundle.dst == self.uid:
+        if bundle.dst == self.eid:
             if DEBUG:
                 print(f"*** Bundle delivered to {self.uid} from {bundle.previous_node} at"
                       f" {t_now:.1f}")
@@ -428,7 +432,7 @@ class Node:
                 # finished, add it to that next node's outbound queue. Otherwise,
                 # remove the route and use CGR.
                 if next_hop.end > t_now and next_hop.frm == self.uid:
-                    # TODO there's a chance that this route won't be feasible in
+                    # FIXME there's a chance that this route won't be feasible in
                     #  terms of resources, such that we reduce them to below zero.
                     #  How to handle this...
                     self._append_to_outbound_queue(b, next_hop.to)
@@ -587,6 +591,7 @@ class Node:
             bundle = self._outbound_queue_all.pop()
             if set(bundle.route) & set([x.uid for x in overbooked_contacts]):
                 self.outbound_queue[self._contact_plan_dict[bundle.route[0]].to].remove(bundle)
+                bundle.obey_route = False
                 self._return_bundle_to_buffer(bundle)
             else:
                 return_to_obq.append(bundle)

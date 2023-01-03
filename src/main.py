@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
-import itertools
 import random
 import sys
 import json
 import cProfile
 
-from queue import PriorityQueue
 from copy import deepcopy
 import simpy
 from pubsub import pub
@@ -15,7 +13,7 @@ from node import Node
 from routing import Contact, cgr_yens
 from scheduling import Scheduler, Request
 from bundles import Buffer, Bundle
-from spaceNetwork import setup_satellites, setup_ground_nodes
+from spaceNetwork import setup_satellites, setup_ground_nodes, GroundNode
 from spaceMobility import review_contacts
 from analytics import Analytics
 
@@ -27,9 +25,9 @@ NUM_BUNDLES = [5, 10]
 BUNDLE_ARRIVAL_RATE = 0.2  # Mean number of bundles to be generated per unit time
 BUNDLE_SIZE = [1, 5]
 BUNDLE_TTL = 25  # Time to live for a
-TARGET_UID = 999
 
 SCHEDULER_ID = 0
+ENDPOINT_ID = 999999  # EID for "destinations"
 TARGET_ID_BASE = 3000
 SATELLITE_ID_BASE = 2000
 GATEWAY_ID_BASE = 1000
@@ -95,8 +93,13 @@ def init_space_nodes(nodes, cp, cpwt, msr=True):
 	node_ids.append(SCHEDULER_ID)
 	node_list = []
 	for n_uid, n in nodes.items():
+		# TODO this is a bit of a hack to get all of the Gateways sharing the same
+		#  endpoint ID so that they can all be the "destination". This should be more
+		#  flexible, so that we can group nodes together in bespoke ways
+		eid = ENDPOINT_ID if isinstance(n, GroundNode) else n_uid
 		n = Node(
 			n_uid,
+			eid,
 			buffer=Buffer(NODE_BUFFER_CAPACITY),
 			outbound_queue={x: [] for x in node_ids},
 			contact_plan=deepcopy(cp),
@@ -216,6 +219,15 @@ def get_data_rate_pairs(sats, gws, s2s, s2g, g2s):
 	return rate_pairs
 
 
+def update_contact_endpoints(cp, gateways):
+	"""For all contacts with a gateway as the receiving node, update the Contact's EID
+	to be the destination EID.
+	"""
+	for contact in cp:
+		if contact.to in gateways:
+			contact.to_eid = ENDPOINT_ID
+
+
 if __name__ == "__main__":
 	"""
 	Contact Graph Scheduling implementation
@@ -277,9 +289,10 @@ if __name__ == "__main__":
 
 	# Add a permanent contact between the MOC and the Gateways so that they can always
 	# be up-to-date in terms of the Task Table
-	for g in gateways:
-		cp.insert(0, Contact(SCHEDULER_ID, g, 0, sim_duration, sys.maxsize))
-		cp.insert(0, Contact(g, SCHEDULER_ID, 0, sim_duration, sys.maxsize))
+	for g_uid, g in gateways.items():
+		# TODO Fix how we're defining the EIDs here, hardcoding isn't good
+		cp.insert(0, Contact(SCHEDULER_ID, g_uid, ENDPOINT_ID, 0, sim_duration, sys.maxsize))
+		cp.insert(0, Contact(g_uid, SCHEDULER_ID, SCHEDULER_ID, 0, sim_duration, sys.maxsize))
 
 	# Instantiate the Mission Operations Center, i.e. the Node at which requests arrive
 	# and then set up each of the remote nodes (including both satellites and gateways).
@@ -317,16 +330,19 @@ if __name__ == "__main__":
 			bundle_size
 		)
 
+	# FIXME Urghhh
+	update_contact_endpoints(cp, [*gateways])
+
 	nodes = init_space_nodes(
 		{**satellites,  **gateways},
 		cp,
 		cp_with_targets,
-		inputs["satellites"]["msr"]
+		inputs["traffic"]["msr"]
 	)
 
 	# TODO Replace this with locally invoked Route Discovery or central route discovery
 	#  and realistic deployment of the tables through the network
-	create_route_tables(nodes, [moc.uid])
+	create_route_tables(nodes, [ENDPOINT_ID])
 	print("Route tables constructed")
 
 	analytics = init_analytics(6000, 6000)
@@ -338,7 +354,7 @@ if __name__ == "__main__":
 	env.process(requests_generator(
 		env,
 		targets,
-		[moc.uid],
+		[inputs["targets"]["destination"]],
 		moc,
 		request_arrival_wait_time,
 		bundle_size,
