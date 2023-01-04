@@ -1,3 +1,4 @@
+import sys
 from copy import deepcopy
 
 import simpy
@@ -64,7 +65,7 @@ if __name__ == "__main__":
 	nodes = init_nodes(node_ids, contact_plan)
 	for n in nodes:
 		for n_ in [x for x in nodes if x.uid != n.uid]:
-			n.route_table[n_.uid] = cgr_yens(n.uid, n_.uid, 0, 10, n.contact_plan)
+			n.route_table[n_.uid] = cgr_yens(n.uid, n_.uid, n.contact_plan, 0, sys.maxsize)
 
 	# Add some bundles on to node #1
 	init_bundles([n for n in nodes if n.uid == 1][0])

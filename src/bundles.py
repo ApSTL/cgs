@@ -45,6 +45,15 @@ class Buffer:
 	def is_empty(self):
 		return True if not self.bundles else False
 
+	@property
+	def all_destinations(self):
+		return list(set([b.dst for b in self.bundles]))
+
+	def final_deadline_for_destination(self, d):
+		if self.is_empty() or d not in self.all_destinations:
+			return None
+		return max([b.deadline for b in self.bundles if b.dst == d])
+
 	def __repr__(self):
 		return "Buffer: qty %d | available %d%% | remaining vol %d" % (
 			len(self.bundles),

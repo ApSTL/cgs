@@ -1,3 +1,4 @@
+import sys
 import unittest
 from copy import deepcopy
 
@@ -62,7 +63,7 @@ class MyTestCase(unittest.TestCase):
 			pub.subscribe(node.bundle_receive, str(node.uid) + "bundle")
 			for n_ in [x for x in [scheduler.uid, node1.uid, node2.uid] if x != node.uid]:
 				node.route_table[n_] = cgr_yens(
-					node.uid, n_, 0, 100, node.contact_plan)
+					node.uid, n_, node.contact_plan, 0, sys.maxsize)
 
 	def tearDown(self) -> None:
 		pub.unsubAll()
@@ -94,7 +95,7 @@ class MyTestCase(unittest.TestCase):
 		print(self.analytics.bundles_delivered)
 		print(self.analytics.bundles_forwarded)
 		print(self.analytics.bundles_dropped)
-		print(self.analytics.latency_ave)
+		print(self.analytics.delivery_latency_ave)
 
 	def test_show_cgr_drops_the_high_priority_bundle(self):
 		print("starting CGR test")
@@ -109,7 +110,7 @@ class MyTestCase(unittest.TestCase):
 		print(self.analytics.bundles_delivered)
 		print(self.analytics.bundles_forwarded)
 		print(self.analytics.bundles_dropped)
-		print(self.analytics.latency_ave)
+		print(self.analytics.delivery_latency_ave)
 		del env
 
 

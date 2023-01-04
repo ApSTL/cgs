@@ -9,7 +9,7 @@ from pubsub import pub
 
 from scheduling import Scheduler, Request, Task
 from bundles import Buffer, Bundle
-from routing import candidate_routes
+from routing import candidate_routes, cgr_yens
 from misc import id_generator
 
 
@@ -186,13 +186,13 @@ class Node:
             # If the task's target is not the node we're in contact with, skip
             if task.target != target:
                 continue
-            # If the task has been assigned to a specific node, but that node is not
-            # this node, skip
+
+            # If the task has been assigned to different node, skip
             if task.assignee and task.assignee != self.uid:
                 continue
-            # If the task has a scheduled pickup time that differs from the current
-            # time, skip
-            if task.pickup_time and task.pickup_time != t_now:
+
+            # If the task has a LATER scheduled pickup time, skip
+            if task.pickup_time and task.pickup_time > t_now:
                 continue
 
             # If there's insufficient buffer capacity to complete the task, and the
@@ -210,13 +210,13 @@ class Node:
             task.acquired(t_now, self.uid)
 
     def _acquire_bundle(self, t_now, task):
-        bundle_lifetime = min(task.deadline_delivery, t_now + task.lifetime)
+        bundle_deadline = min(task.deadline_delivery, t_now + task.lifetime)
         bundle = Bundle(
             src=self.uid,
             dst=task.destination,
             target_id=task.target,
             size=task.size,
-            deadline=bundle_lifetime,
+            deadline=bundle_deadline,
             created_at=t_now,
             priority=task.priority,
             task_id=task.uid,
@@ -241,18 +241,13 @@ class Node:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the
             # neighbour
-            if self._task_table_updated[contact.to]:
+            if self._task_table_updated[contact.to] and self.uid == 0:
                 env.process(self._task_table_send(
                         env,
                         contact.to,
                         contact.owlt,
                     )
                 )
-                # FIXME This will "switch off" the task table update flag for everyone,
-                #  so, e.g. if we're in contact with two nodes and one of them sends
-                #  through an update such that this flag goes true, if we then
-                #  immediately respond to that node with the updated TT, we'll not get
-                #  the trigger to send to the other neighbour.
                 self._task_table_updated[contact.to] = False
                 yield env.timeout(0)
                 continue
@@ -399,6 +394,40 @@ class Node:
         #  triggered at those regular intervals.
 
     # *** ROUTE SELECTION, BUNDLE ENQUEUEING AND RESOURCE CONSIDERATION ***
+    def route_table_eval(self, t_now):
+        """Review the Route Tables and, if deemed necessary, refresh them.
+
+        Each route table stores potential routes to a specific destination endpoint. If
+        the number of routes available, or the minimum route volume is below some
+        threshold, regenerate this route table.
+        """
+        for dest in self.route_table:
+
+            # TODO Make the Route Table a class and update these things as necessary,
+            #  so that we don't need to do it on the fly each time
+            # Remove any route that has already passed
+            self.route_table[dest] = [r for r in self.route_table[dest] if
+                                      r.hops[0].end > t_now]
+
+            self.contact_plan = [c for c in self.contact_plan if c.end > t_now]
+            self.contact_plan_targets = [c for c in self.contact_plan_targets if c.end > t_now]
+
+            # Get the time at which the very last route currently ends
+            if self.route_table[dest]:
+                max_delivery_time = max([r.hops[-1].end for r in self.route_table[dest]])
+            else:
+                max_delivery_time = 0
+
+            if max_delivery_time < self.buffer.final_deadline_for_destination(dest):
+                self.route_table[dest] = self._route_discovery(
+                    dest,
+                    t_now,
+                    self.buffer.final_deadline_for_destination(dest) + 3600,  # TODO
+                )
+
+    def _route_discovery(self, destination, from_time, end_time):
+        return cgr_yens(self.uid, destination, self.contact_plan, from_time, end_time)
+
     def bundle_assignment_controller(self, env):
         """Repeating process that kicks off the bundle assignment procedure.
         """
@@ -417,6 +446,10 @@ class Node:
         :return:
         """
         new_bundles_assigned = False
+
+        if not self.buffer.is_empty():
+            self.route_table_eval(t_now)
+
         while not self.buffer.is_empty():
             new_bundles_assigned = True
             assigned = False

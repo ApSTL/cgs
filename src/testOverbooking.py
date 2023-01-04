@@ -1,3 +1,4 @@
+import sys
 import unittest
 
 from misc import cp_load
@@ -11,7 +12,7 @@ class TestContactOverbooking(unittest.TestCase):
 		contact_plan = cp_load('contact_plans/test_overbooking.txt', 5000)
 		self.node1 = Node(1, contact_plan=contact_plan)
 		for n in [2, 3]:
-			self.node1.route_table[n] = cgr_yens(1, n, 0, 5, contact_plan)
+			self.node1.route_table[n] = cgr_yens(1, n, contact_plan, 0, sys.maxsize)
 			self.node1.outbound_queue[n] = []
 
 		self.bundle_lp1 = Bundle(1, 3, size=1, priority=0, created_at=0)

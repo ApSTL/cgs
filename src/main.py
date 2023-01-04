@@ -113,7 +113,7 @@ def init_space_nodes(nodes, cp, cpwt, msr=True):
 	return node_list
 
 
-def create_route_tables(nodes, destinations, t_now=0, num_routes_per_pair=100) -> None:
+def create_route_tables(nodes, destinations, t_now=0, end_time=sys.maxsize) -> None:
 	"""
 	Route Table creation - Invokes Yen's CGR algorithm to discover routes between
 	node-pairs, stores them in a dictionary and updates the route table on each node
@@ -123,20 +123,20 @@ def create_route_tables(nodes, destinations, t_now=0, num_routes_per_pair=100) -
 			n.route_table[d] = cgr_yens(
 				n.uid,
 				d,
+				n.contact_plan,
 				t_now,
-				num_routes_per_pair,
-				n.contact_plan
+				end_time,
 			)
 
 
-def init_analytics(warm_up=0, cool_down=sys.maxsize):
+def init_analytics(ignore_start=0, ignore_end=0):
 	"""The analytics module tracks events that occur during the simulation.
 
 	This includes keeping a log of every request, task and bundle object, and counting
 	the number of times a specific movement is made (e.g. forwarding, dropping,
 	state transition etc).
 	"""
-	a = Analytics(warm_up, cool_down)
+	a = Analytics(ignore_start, ignore_end)
 
 	pub.subscribe(a.submit_request, "request_submit")
 	pub.subscribe(a.fail_request, "request_fail")
@@ -342,7 +342,11 @@ if __name__ == "__main__":
 
 	# TODO Replace this with locally invoked Route Discovery or central route discovery
 	#  and realistic deployment of the tables through the network
-	create_route_tables(nodes, [ENDPOINT_ID])
+	create_route_tables(
+		nodes=nodes,
+		destinations=[ENDPOINT_ID],
+		end_time=inputs["traffic"]["lifetime"]
+	)
 	print("Route tables constructed")
 
 	analytics = init_analytics(6000, 6000)
@@ -391,7 +395,10 @@ if __name__ == "__main__":
 	print(f"{analytics.bundles_delivered} Bundles were delivered")
 	print(f"{analytics.bundles_dropped} Bundles were dropped\n")
 	print("*** PERFORMANCE DATA ***")
-	print(f"The average bundle latency is {analytics.latency_ave}")
-	print(f"The bundle latency Std. Dev. is {analytics.latency_stdev}")
+	print(f"The average bundle DELIVERY latency is {analytics.delivery_latency_ave}")
+	print(f"The bundle DELIVERY latency Std. Dev. is {analytics.delivery_latency_stdev}")
+	print(f"The average bundle REQUEST latency is {analytics.request_latency_ave}")
+	print(f"The bundle REQUEST latency Std. Dev. is {analytics.request_latency_stdev}")
+
 	print('')
 
