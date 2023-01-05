@@ -3,7 +3,7 @@
   "plot": false,
   "debug": true,
   "simulation": {
-    "duration": 30000,
+    "duration": 10000,
     "date_start": 2459659.005,
     "step_size": 10,
     "filename": "test_0",

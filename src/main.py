@@ -50,19 +50,33 @@ def requests_generator(env, sources, sinks, moc, inter_arrival_time, size, prior
 	tasks, added to a task table, and distributed through the network for execution by
 	nodes.
 	"""
+	num_fails = 0
 	while True:
 		yield env.timeout(random.expovariate(1 / inter_arrival_time))
-		source = random.choice([s for s in sources.values()])
-		request = Request(
-			source.uid,
-			destination=random.choice(sinks),
-			data_volume=size,
-			priority=priority,
-			bundle_lifetime=ttl,
-			time_created=env.now,
-		)
-		moc.request_received(request, env.now)
-		pub.sendMessage("request_submit", r=request)
+		sources_tried = set()
+		while len(sources_tried) < len(sources):
+			# Keep trying different sources (targets) at random until one of them
+			# results in a successful task creation
+			source = random.choice(
+				[s for s in sources.values() if s.uid not in sources_tried])
+			sources_tried.add(source.uid)
+			request = Request(
+				source.uid,
+				destination=random.choice(sinks),
+				data_volume=size,
+				priority=priority,
+				bundle_lifetime=ttl,
+				time_created=env.now,
+			)
+			moc.request_received(request)
+			request = moc.request_queue.pop(0)
+			success = moc.process_request(request, env.now)
+			if success:
+				pub.sendMessage("request_submit", r=request)
+				break
+			if len(sources_tried) == len(sources):
+				num_fails += 1
+				print(f"Number of fully failed requests is {num_fails}")
 
 
 def bundle_generator(env, sources, destinations):
@@ -82,7 +96,7 @@ def bundle_generator(env, sources, destinations):
 			f" {destination.uid}")
 		b = Bundle(
 			src=source.uid, dst=destination.uid, target_id=source.uid, size=size,
-			deadline=deadline, created_at=env.now)
+			deadline=deadline, created_at=env.now, current=source.uid)
 		source.buffer.append(b)
 		pub.sendMessage("bundle_acquired", b=b)
 
@@ -136,7 +150,7 @@ def init_analytics(ignore_start=0, ignore_end=0):
 	the number of times a specific movement is made (e.g. forwarding, dropping,
 	state transition etc).
 	"""
-	a = Analytics(ignore_start, ignore_end)
+	a = Analytics(inputs["simulation"]["duration"], ignore_start, ignore_end)
 
 	pub.subscribe(a.submit_request, "request_submit")
 	pub.subscribe(a.fail_request, "request_fail")
@@ -302,7 +316,8 @@ if __name__ == "__main__":
 		contact_plan=cp,
 		contact_plan_targets=cp_with_targets,
 		scheduler=Scheduler(),
-		outbound_queue={x: [] for x in {**satellites, **gateways}}
+		outbound_queue={x: [] for x in {**satellites, **gateways}},
+		request_duplication=False
 	)
 	moc.scheduler.parent = moc
 	pub.subscribe(moc.bundle_receive, str(SCHEDULER_ID) + "bundle")
@@ -349,7 +364,7 @@ if __name__ == "__main__":
 	)
 	print("Route tables constructed")
 
-	analytics = init_analytics(6000, 6000)
+	analytics = init_analytics(1000, 1000)
 
 	# ************************ BEGIN THE SIMULATION PROCESS ************************
 	# Initiate the simpy environment, which keeps track of the event queue and triggers
@@ -382,18 +397,19 @@ if __name__ == "__main__":
 	# env.run(until=sim_duration)
 	cProfile.run('env.run(until=sim_duration)')
 
+	print(f"Total download capacity was {download_capacity} units")
 	print("*** REQUEST DATA ***")
-	print(f"{analytics.requests_submitted} Requests were submitted")
-	print(f"{analytics.requests_failed} Requests could not be fulfilled")
-	print(f"{analytics.requests_duplicated} Requests already handled by existing tasks\n")
+	print(f"{analytics.requests_submitted_count} Requests were submitted")
+	print(f"{analytics.requests_failed_count} Requests could not be fulfilled")
+	print(f"{analytics.requests_duplicated_count} Requests already handled by existing tasks\n")
 	print("*** TASK DATA ***")
-	print(f"{analytics.tasks_processed} Tasks were created")
-	print(f"{analytics.tasks_failed} Tasks were unsuccessful\n")
+	print(f"{analytics.tasks_processed_count} Tasks were created")
+	print(f"{analytics.tasks_failed_count} Tasks were unsuccessful\n")
 	print("*** BUNDLE DATA ***")
-	print(f"{analytics.bundles_acquired} Bundles were acquired")
-	print(f"{analytics.bundles_forwarded} Bundles were forwarded")
-	print(f"{analytics.bundles_delivered} Bundles were delivered")
-	print(f"{analytics.bundles_dropped} Bundles were dropped\n")
+	print(f"{analytics.bundles_acquired_count} Bundles were acquired")
+	print(f"{analytics.bundles_forwarded_count} Bundles were forwarded")
+	print(f"{analytics.bundles_delivered_count} Bundles were delivered")
+	print(f"{analytics.bundles_dropped_count} Bundles were dropped\n")
 	print("*** PERFORMANCE DATA ***")
 	print(f"The average bundle DELIVERY latency is {analytics.delivery_latency_ave}")
 	print(f"The bundle DELIVERY latency Std. Dev. is {analytics.delivery_latency_stdev}")

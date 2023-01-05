@@ -291,6 +291,29 @@ class Scheduler:
             )
 
             # Create a root contact from which we can find a delivery path
+            # TODO a hack to reducing the risk of bundles being scheduled over contacts
+            #  they may not be able to traverse
+            # current_contacts = [
+            #     c for c in contact_plan
+            #     if c.frm == path_acq.hops[-1].frm and
+            #        c.start < path_acq.best_delivery_time < c.end
+            # ]
+            #
+            # if current_contacts:
+            #     earliest_next_contact = max([c.end for c in current_contacts])
+            # else:
+            #     earliest_next_contact = path_acq.best_delivery_time
+            #
+            # root_delivery = Contact(
+            #     path_acq.hops[-1].frm,
+            #     path_acq.hops[-1].frm,
+            #     path_acq.hops[-1].frm,
+            #     earliest_next_contact,
+            #     sys.maxsize,
+            #     sys.maxsize
+            # )
+            # root_delivery.arrival_time = earliest_next_contact
+
             root_delivery = Contact(
                 path_acq.hops[-1].frm,
                 path_acq.hops[-1].frm,

@@ -86,17 +86,13 @@ class Node:
         self._contact_plan_self.sort()
 
     # *** REQUEST HANDLING (I.E. SCHEDULING) ***
-    def request_received(self, request, t_now):
+    def request_received(self, request):
         """
         When a request is received, it gets added to the request queue
         """
         self.request_queue.append(request)
 
-        # TODO this will trigger the request processing immediately having received a
-        #  request, however we may want to set this process to be periodic
-        self._process_requests(t_now)
-
-    def _process_requests(self, curr_time):
+    def process_all_requests(self, curr_time):
         """
         Process each request in the queue, by identifying the assignee-target contact
         that will collect the payload, creating a Task for this and adding it to the table
@@ -104,35 +100,41 @@ class Node:
         """
         while self.request_queue:
             request = self.request_queue.pop(0)
-            self.handled_requests.append(request)
+            self.process_request(request, curr_time)
 
-            # Check to see if any existing tasks exist that could service this request.
-            if self.request_duplication:
-                task_ = self._task_already_servicing_request(request)
-                if task_:
-                    task_.request_ids.append(request.uid)
-                    # TODO Note that this won't necessarily be shared throughout the
-                    #  network, since it's not really an "update to the task. Tbh,
-                    #  it won't matter that much, since the remote node doesn't need to
-                    #  know details about the request(s) its servicing, but could be
-                    #  good to ensure it's shared
-                    pub.sendMessage("request_duplicated")
-                    continue
+    def process_request(self, request, curr_time):
+        self.handled_requests.append(request)
 
-            task = self.scheduler.schedule_task(
-                request,
-                curr_time,
-                self.contact_plan,
-                self.contact_plan_targets
-            )
+        # Check to see if any existing tasks exist that could service this request.
+        if self.request_duplication:
+            task_ = self._task_already_servicing_request(request)
+            if task_:
+                task_.request_ids.append(request.uid)
+                # TODO Note that this won't necessarily be shared throughout the
+                #  network, since it's not really an "update to the task. Tbh,
+                #  it won't matter that much, since the remote node doesn't need to
+                #  know details about the request(s) its servicing, but could be
+                #  good to ensure it's shared
+                pub.sendMessage("request_duplicated")
+                return True
 
-            # If a task has been created (i.e. there is a feasible acquisition and
-            # delivery opportunity), add the task to the table. Else, that request
-            # cannot be fulfilled so log something to that effect
-            if task:
-                request.status = "scheduled"
-                self.task_table[task.uid] = task
-                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+        task = self.scheduler.schedule_task(
+            request,
+            curr_time,
+            self.contact_plan,
+            self.contact_plan_targets
+        )
+
+        # If a task has been created (i.e. there is a feasible acquisition and
+        # delivery opportunity), add the task to the table. Else, that request
+        # cannot be fulfilled so log something to that effect
+        if task:
+            request.status = "scheduled"
+            self.task_table[task.uid] = task
+            self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+            return True
+
+        return False
 
     def _task_already_servicing_request(self, request: Request) -> Task | None:
         """Returns True if the request is already handled by an existing Task.
@@ -183,8 +185,13 @@ class Node:
         association a pick-up time) the ID matches ours
         """
         for task_id, task in self.task_table.items():
+
             # If the task's target is not the node we're in contact with, skip
             if task.target != target:
+                continue
+
+            # If the task is not needing to be executed
+            if task.status != "pending":
                 continue
 
             # If the task has been assigned to different node, skip
@@ -199,10 +206,13 @@ class Node:
             # task has been scheduled to be acquired by us, at this time, set the task
             # to "redundant" so it can be rescheduled. Otherwise, just skip so that it
             # can perhaps be handled later, if still pending
+            # TODO Implement re-scheduling so that we can reassign this task to the
+            #  next best opportunity. Otherwise, we'll just wait until a viable
+            #  opportunity and complete it then.
             if self.buffer.capacity_remaining < task.size:
-                if task.assignee and task.assignee == self.uid and task.pickup_time and\
-                        task.pickup_time == t_now:
-                    task.status = "redundant"
+                # if task.assignee and task.assignee == self.uid and task.pickup_time and\
+                #         task.pickup_time == t_now:
+                #     task.status = "redundant"
                 continue
 
             # Otherwise, pick up the bundle :)
@@ -220,7 +230,9 @@ class Node:
             created_at=t_now,
             priority=task.priority,
             task_id=task.uid,
-            obey_route=self.msr
+            obey_route=self.msr,
+            current=self.uid
+
         )
         self.buffer.append(bundle)
         if DEBUG:
@@ -289,7 +301,6 @@ class Node:
             )
 
             if contact.to == bundle.dst and self.task_table:
-
                 self.task_table[bundle.task_id].delivered(env.now, self.uid, contact.to)
                 self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
 
@@ -369,15 +380,18 @@ class Node:
             return
 
         bundle.hop_count += 1
+        bundle.current = self.uid
 
         if bundle.dst == self.eid:
             if DEBUG:
                 print(f"*** Bundle delivered to {self.uid} from {bundle.previous_node} at"
                       f" {t_now:.1f}")
+            bundle.delivered_at = t_now
             pub.sendMessage("bundle_delivered", b=bundle, t_now=t_now)
             self.delivered_bundles.append(bundle)
             if self.task_table:
-                self.task_table[bundle.task_id].status = "delivered"
+                self.task_table[bundle.task_id].delivered(
+                    t_now, bundle.previous_node, self.uid)
                 self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
             return
 
@@ -530,11 +544,12 @@ class Node:
                 break
 
             if not assigned:
+                b.dropped_at = t_now
                 self.drop_list.append(b)
                 if DEBUG:
                     print(f"XXX Bundle dropped from network at {t_now} on node"
                           f" {self.uid}")
-                pub.sendMessage("bundle_dropped")
+                pub.sendMessage("bundle_dropped", bundle=b)
 
         # Check for any over-booking of contacts and, if required, carry out the bundle
         # assignment again for any bundles that have been put back into the Buffer

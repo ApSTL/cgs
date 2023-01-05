@@ -92,9 +92,9 @@ class MyTestCase(unittest.TestCase):
 			env.process(node.contact_controller(env))  # Generator that initiates contacts
 		env.run(until=100)
 
-		print(self.analytics.bundles_delivered)
-		print(self.analytics.bundles_forwarded)
-		print(self.analytics.bundles_dropped)
+		print(self.analytics.bundles_delivered_count)
+		print(self.analytics.bundles_forwarded_count)
+		print(self.analytics.bundles_dropped_count)
 		print(self.analytics.delivery_latency_ave)
 
 	def test_show_cgr_drops_the_high_priority_bundle(self):
@@ -107,9 +107,9 @@ class MyTestCase(unittest.TestCase):
 			env.process(node.bundle_assignment_controller(env))
 			env.process(node.contact_controller(env))  # Generator that initiates contacts
 		env.run(until=100)
-		print(self.analytics.bundles_delivered)
-		print(self.analytics.bundles_forwarded)
-		print(self.analytics.bundles_dropped)
+		print(self.analytics.bundles_delivered_count)
+		print(self.analytics.bundles_forwarded_count)
+		print(self.analytics.bundles_dropped_count)
 		print(self.analytics.delivery_latency_ave)
 		del env
 
