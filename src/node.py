@@ -45,6 +45,7 @@ class Node:
     route_table: Dict = field(init=False, default_factory=dict)
     request_queue: List = field(init=False, default_factory=list)
     handled_requests: List = field(init=False, default_factory=list)
+    failed_requests: List = field(init=False, default_factory=list)
     task_table: Dict = field(init=False, default_factory=dict)
     drop_list: List = field(init=False, default_factory=list)
     delivered_bundles: List = field(init=False, default_factory=list)
@@ -88,21 +89,29 @@ class Node:
     # *** REQUEST HANDLING (I.E. SCHEDULING) ***
     def request_received(self, request):
         """
-        When a request is received, it gets added to the request queue
+        When a request is received, it gets added to the request queue.
         """
         self.request_queue.append(request)
 
     def process_all_requests(self, curr_time):
-        """
-        Process each request in the queue, by identifying the assignee-target contact
-        that will collect the payload, creating a Task for this and adding it to the table
+        """Process each request in the queue, by earliest-arrival first.
+
+        By identifying the assignee-target contact that will collect the payload,
+        creating a Task for this and adding it to the table
         :return:
         """
         while self.request_queue:
             request = self.request_queue.pop(0)
             self.process_request(request, curr_time)
 
-    def process_request(self, request, curr_time):
+    def process_request(self, request: Request, curr_time: int | float):
+        """Process a single request resulting in a Task being added to the task table.
+
+        In the event that a request cannot be fulfilled, it gets added to the failed list
+        Args:
+            :param request: Request object
+            :param curr_time: Current time
+        """
         self.handled_requests.append(request)
 
         # Check to see if any existing tasks exist that could service this request.
@@ -125,15 +134,16 @@ class Node:
             self.contact_plan_targets
         )
 
-        # If a task has been created (i.e. there is a feasible acquisition and
-        # delivery opportunity), add the task to the table. Else, that request
-        # cannot be fulfilled so log something to that effect
+        # If a task has been created (i.e. the request can be fulfilled), add the task to
+        # the table. Else, that request cannot be fulfilled
         if task:
             request.status = "scheduled"
             self.task_table[task.uid] = task
             self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
             return True
 
+        request.status = "failed"
+        self.failed_requests.append(request)
         return False
 
     def _task_already_servicing_request(self, request: Request) -> Task | None:
@@ -253,7 +263,7 @@ class Node:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the
             # neighbour
-            if self._task_table_updated[contact.to] and self.uid == 0:
+            if self._task_table_updated[contact.to]:
                 env.process(self._task_table_send(
                         env,
                         contact.to,

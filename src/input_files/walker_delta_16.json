@@ -10,11 +10,13 @@
     "description": "Example as defined in 'Assessing Contact Graph Routing Performance and Reliability in Distributed Satellite Constellations' by Fraire et al. 2017"
   },
   "traffic": {
-    "size": 5,
-    "lifetime": 3600,
+    "size": 10,
+    "max_time_to_acquire": 10800,
+    "max_time_to_deliver": null,
+    "bundle_lifetime": 7200,
     "priority": 0,
     "congestion": 0.5,
-    "msr": false
+    "msr": true
   },
   "targets": {
     "type": "bespoke",

@@ -44,7 +44,10 @@ def get_request_inter_arrival_time(sim_time, outflow, congestion, size) -> int:
 	return (sim_time * size) / (outflow * congestion)
 
 
-def requests_generator(env, sources, sinks, moc, inter_arrival_time, size, priority, ttl):
+def requests_generator(
+		env, sources, sinks, moc, inter_arrival_time, size, priority,
+		acquire_time, deliver_time, ttl
+):
 	"""
 	Generate requests that get submitted to a scheduler where they are processed into
 	tasks, added to a task table, and distributed through the network for execution by
@@ -60,11 +63,16 @@ def requests_generator(env, sources, sinks, moc, inter_arrival_time, size, prior
 			source = random.choice(
 				[s for s in sources.values() if s.uid not in sources_tried])
 			sources_tried.add(source.uid)
+			acquire_deadline = env.now + acquire_time if acquire_time else sys.maxsize
+			deliver_deadline = env.now + deliver_time if deliver_time else sys.maxsize
+
 			request = Request(
 				source.uid,
 				destination=random.choice(sinks),
 				data_volume=size,
 				priority=priority,
+				deadline_acquire=acquire_deadline,
+				deadline_deliver=deliver_deadline,
 				bundle_lifetime=ttl,
 				time_created=env.now,
 			)
@@ -360,7 +368,7 @@ if __name__ == "__main__":
 	create_route_tables(
 		nodes=nodes,
 		destinations=[ENDPOINT_ID],
-		end_time=inputs["traffic"]["lifetime"]
+		end_time=inputs["traffic"]["bundle_lifetime"]
 	)
 	print("Route tables constructed")
 
@@ -378,7 +386,9 @@ if __name__ == "__main__":
 		request_arrival_wait_time,
 		bundle_size,
 		inputs["traffic"]["priority"],
-		inputs["traffic"]["lifetime"]
+		inputs["traffic"]["max_time_to_acquire"],
+		inputs["traffic"]["max_time_to_deliver"],
+		inputs["traffic"]["bundle_lifetime"]
 	))
 
 	# Set up the Simpy Processes on each of the Nodes. These are effectively the
@@ -411,6 +421,8 @@ if __name__ == "__main__":
 	print(f"{analytics.bundles_delivered_count} Bundles were delivered")
 	print(f"{analytics.bundles_dropped_count} Bundles were dropped\n")
 	print("*** PERFORMANCE DATA ***")
+	print(f"The average bundle PICKUP latency is {analytics.pickup_latency_ave}")
+	print(f"The bundle PICKUP latency Std. Dev. is {analytics.pickup_latency_stdev}")
 	print(f"The average bundle DELIVERY latency is {analytics.delivery_latency_ave}")
 	print(f"The bundle DELIVERY latency Std. Dev. is {analytics.delivery_latency_stdev}")
 	print(f"The average bundle REQUEST latency is {analytics.request_latency_ave}")

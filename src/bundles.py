@@ -91,7 +91,7 @@ class Bundle:
 	target_id: int = 0
 	created_at: int = 0
 	size: int = 1
-	deadline: int = 1000
+	deadline: int = sys.maxsize
 	priority: int = 0  #
 	critical: bool = False
 	fragment: bool = True

@@ -14,7 +14,6 @@ class Analytics:
 		self.requests_duplicated_count = 0
 
 		self.tasks = {}
-		self.tasks_processed_count = 0
 		self.tasks_failed_count = 0
 		self.tasks_redundant_count = 0
 		self.tasks_renewed_count = 0
@@ -44,7 +43,26 @@ class Analytics:
 		]
 
 	@property
+	def pickup_latencies(self):
+		# List of all times between request submission and bundle creation for ALL
+		# bundles deemed "valid" for analysis
+		return [
+			b.created_at - self.requests[self.tasks[b.task_id].request_ids[
+				0]].time_created
+			for b in self.get_bundles_delivered_in_active_period() + self.get_bundles_failed_in_active_period()
+		]
+
+	@property
+	def pickup_latency_ave(self):
+		return mean(self.pickup_latencies)
+
+	@property
+	def pickup_latency_stdev(self):
+		return stdev(self.pickup_latencies)
+
+	@property
 	def delivery_latencies(self):
+		# List of times from bundle creation and bundle delivery
 		return [
 			b.delivered_at - b.created_at
 			for b in self.get_bundles_delivered_in_active_period()
@@ -60,6 +78,7 @@ class Analytics:
 
 	@property
 	def request_latencies(self):
+		# List of times between bundle delivery and request submission
 		return [
 			b.delivered_at - self.requests[self.tasks[b.task_id].request_ids[0]].time_created
 			for b in self.get_bundles_delivered_in_active_period()
@@ -86,7 +105,7 @@ class Analytics:
 
 	@property
 	def requests_submitted_count(self):
-		return None
+		return len(self.requests)
 
 	def fail_request(self):
 		self.requests_failed_count += 1
@@ -94,9 +113,12 @@ class Analytics:
 	def duplicated_request(self):
 		self.requests_duplicated_count += 1
 
+	@property
+	def tasks_processed_count(self):
+		return len(self.tasks)
+
 	def add_task(self, t):
 		self.tasks[t.uid] = t
-		self.tasks_processed_count += 1
 
 	def fail_task(self):
 		self.tasks_failed_count += 1

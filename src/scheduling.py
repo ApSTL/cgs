@@ -16,8 +16,8 @@ class Request:
     target_lat: float = None
     target_lon: float = None
     target_alt: float = None
-    deadline_acquire: int = None
-    deadline_deliver: int = None
+    deadline_acquire: int = sys.maxsize
+    deadline_deliver: int = sys.maxsize
     bundle_lifetime: int = sys.maxsize
     priority: int = 0
     destination: int = 999
@@ -27,11 +27,7 @@ class Request:
     status: str = "initiated"
 
     def __post_init__(self):
-        # Define a unique ID based on the time of request arrival and ID of the target
-        if not self.deadline_acquire:
-            self.deadline_acquire = sys.maxsize
-        if not self.deadline_deliver:
-            self.deadline_deliver = sys.maxsize
+        self.deadline_acquire = min(self.deadline_acquire, self.deadline_deliver)
 
     @property
     def uid(self):
@@ -66,6 +62,8 @@ class Task:
     delivered_at: int | float = field(init=False, default=None)
     delivered_by: int = field(init=False, default=None)
     delivered_to: int = field(init=False, default=None)
+    failed_at: int | float = field(init=False, default=None)
+    failed_on: int = field(init=False, default=None)
     status: str = field(init=False, default="pending")
     __uid: str = field(init=False, default_factory=lambda: id_generator())
 
@@ -83,6 +81,11 @@ class Task:
         self.delivered_at = t
         self.delivered_by = by
         self.delivered_to = to
+
+    def failed(self, t, node):
+        self.status = "failed"
+        self.failed_at = t
+        self.failed_on = node
 
     def __lt__(self, other):
         """Order Tasks based on their status value
@@ -141,10 +144,9 @@ class Scheduler:
         if not self.define_delivery:
             self.resource_aware = False
 
-    def schedule_task(self, request: Request, curr_time: int, contact_plan: list,
+    def schedule_task(self, request: Request, curr_time: int | float, contact_plan: list,
                       contact_plan_targets: list) -> Task | None:
         """
-
         Identify the contact, between a satellite & target, in which the request should
         be fulfilled and return a task that includes the necessary info. The process to do
         this is effectively two-executions of Dijkstra's algorithm, whereby routes to
@@ -325,11 +327,15 @@ class Scheduler:
             root_delivery.arrival_time = path_acq.best_delivery_time
 
             # Identify best route to the destination from our current acquiring node
+            end_time = min(
+                request.deadline_deliver,
+                request.deadline_acquire + request.bundle_lifetime
+            )
             path_del = cgr_dijkstra(
                 root_delivery,
                 request.destination,
                 contact_plan,
-                request.deadline_deliver,
+                end_time,
                 request.data_volume
             )
 
