@@ -95,7 +95,7 @@ class Bundle:
 	priority: int = 0  #
 	critical: bool = False
 	fragment: bool = True
-	task_id: int = None
+	task_id: str | int = None
 	obey_route: bool = False
 	current: int = None
 	delivered_at: float = None

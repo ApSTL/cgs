@@ -128,8 +128,9 @@ def init_space_nodes(nodes, cp, cpwt, msr=True):
 			contact_plan_targets=deepcopy(cpwt),
 			msr=msr
 		)
-		# n._targets = targets
+		#
 		pub.subscribe(n.bundle_receive, str(n_uid) + "bundle")
+		pub.subscribe(n.task_table_receive, str(n_uid) + "task_table")
 		node_list.append(n)
 	print(f"Nodes created, with MSR = {msr}")
 	return node_list

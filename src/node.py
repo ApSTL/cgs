@@ -49,7 +49,7 @@ class Node:
     task_table: Dict = field(init=False, default_factory=dict)
     drop_list: List = field(init=False, default_factory=list)
     delivered_bundles: List = field(init=False, default_factory=list)
-    _task_table_updated: Dict = field(init=False, default_factory=dict)
+    _task_table_updates: Dict = field(init=False, default_factory=dict)
     _targets: Set = field(init=False, default_factory=set)
     _contact_plan_self: List = field(init=False, default_factory=list)
     _contact_plan_dict: Dict = field(init=False, default_factory=dict)
@@ -65,7 +65,7 @@ class Node:
             self.scheduler.parent = self
 
         # TODO If the OBQ gets updated after initiation, this will get missed.
-        self._task_table_updated = {n: False for n in self.outbound_queue}
+        self._task_table_updates = {n: [] for n in self.outbound_queue}
 
     def update_contact_plan(self, cp=None, cp_targets=None):
         if cp:
@@ -139,7 +139,7 @@ class Node:
         if task:
             request.status = "scheduled"
             self.task_table[task.uid] = task
-            self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+            self._update_task_change_tracker(task.uid, [])
             return True
 
         request.status = "failed"
@@ -263,14 +263,15 @@ class Node:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the
             # neighbour
-            if self._task_table_updated[contact.to]:
+            if self._task_table_updates[contact.to]:
                 env.process(self._task_table_send(
                         env,
                         contact.to,
                         contact.owlt,
+                        [t for t in self.task_table.values()
+                         if t.uid in self._task_table_updates[contact.to]]
                     )
                 )
-                self._task_table_updated[contact.to] = False
                 yield env.timeout(0)
                 continue
 
@@ -312,7 +313,7 @@ class Node:
 
             if contact.to == bundle.dst and self.task_table:
                 self.task_table[bundle.task_id].delivered(env.now, self.uid, contact.to)
-                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+                self._update_task_change_tracker(bundle.task_id, [])
 
             # Wait until the bundle has been sent (note it may not have
             # been fully received at this time, due to the OWLT, but that's
@@ -330,18 +331,41 @@ class Node:
         """
         Carry out the handshake at the beginning of the contact,
         """
-        env.process(self._task_table_send(env, to, delay))
+        env.process(self._task_table_send(
+            env,
+            to,
+            delay,
+            [t for t in self.task_table.values() if t.uid in self._task_table_updates[to]]
+        ))
 
-    def _task_table_send(self, env, to, delay):
+    def _update_task_change_tracker(self, task_id: str, excluded: List[int]):
+        """Updates dict that tracks tasks that may have changed for each other node.
+
+        This method appends the task ID to each node in the dict to indicate something
+        has changed with this task such that it should be shared in case an update is
+        required on the other node.
+        """
+        for node, tasks in self._task_table_updates.items():
+            if node in excluded:
+                continue
+            tasks.append(task_id)
+
+    def _task_table_send(self, env, to, delay, updated_tasks):
         while True:
             yield env.timeout(delay)
             # Wait until the whole message has arrived and then invoke the "receive"
             # method on the receiving node
             pub.sendMessage(
-                str(to) + "bundle",
-                t_now=env.now, bundle=self.task_table, is_task_table=True
+                str(to) + "task_table",
+                task_table={t.uid: t for t in updated_tasks},
+                frm=self.uid
             )
+            # Indicate that there's no longer any task updates pending for this node
+            self._task_table_updates[to] = []
             break
+
+    def task_table_receive(self, task_table, frm):
+        self._merge_task_tables(task_table, frm)
 
     def _bundle_send(self, env, bundle, to_node, delay):
         """
@@ -368,22 +392,17 @@ class Node:
             yield env.timeout(delay)
             pub.sendMessage(
                 str(to_node) + "bundle",
-                t_now=env.now, bundle=bundle, is_task_table=False
+                t_now=env.now, bundle=bundle
             )
 
             return
 
-    def bundle_receive(self, t_now, bundle, is_task_table=False):
+    def bundle_receive(self, t_now, bundle):
         """
-        Receive bundle from neighbouring node. This also includes the receiving of Task
-        Tables, as indicated by the flag in the args.
+        Receive bundle from neighbouring node.
 
         If the bundle is too large to be accommodated, reject, else accept
         """
-        if is_task_table:
-            self._merge_task_tables(bundle)
-            return
-
         if self.buffer.capacity_remaining < bundle.size:
             # TODO Handle the case where a bundle is too large to be accommodated
             pass
@@ -402,7 +421,7 @@ class Node:
             if self.task_table:
                 self.task_table[bundle.task_id].delivered(
                     t_now, bundle.previous_node, self.uid)
-                self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+                self._update_task_change_tracker(bundle.task_id, [])
             return
 
         if DEBUG:
@@ -655,7 +674,7 @@ class Node:
                 return_to_obq.append(bundle)
         self._outbound_queue_all.extend(return_to_obq)
 
-    def _merge_task_tables(self, tt_other):
+    def _merge_task_tables(self, tt_other, frm):
         """
         Compare two task tables and return one with the most up to dat information
         """
@@ -669,4 +688,4 @@ class Node:
                 if not self.task_table[task_id] < task:
                     continue
             self.task_table[task_id] = deepcopy(task)
-            self._task_table_updated = dict.fromkeys(self._task_table_updated, True)
+            self._update_task_change_tracker(task_id, excluded=[frm])
