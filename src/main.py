@@ -4,6 +4,8 @@ import random
 import sys
 import json
 import cProfile
+import pickle
+from types import SimpleNamespace
 
 from copy import deepcopy
 import simpy
@@ -46,7 +48,7 @@ def get_request_inter_arrival_time(sim_time, outflow, congestion, size) -> int:
 
 def requests_generator(
 		env, sources, sinks, moc, inter_arrival_time, size, priority,
-		acquire_time, deliver_time, ttl
+		acquire_time, deliver_time
 ):
 	"""
 	Generate requests that get submitted to a scheduler where they are processed into
@@ -64,7 +66,6 @@ def requests_generator(
 				[s for s in sources.values() if s.uid not in sources_tried])
 			sources_tried.add(source.uid)
 			acquire_deadline = env.now + acquire_time if acquire_time else sys.maxsize
-			deliver_deadline = env.now + deliver_time if deliver_time else sys.maxsize
 
 			request = Request(
 				source.uid,
@@ -72,15 +73,14 @@ def requests_generator(
 				data_volume=size,
 				priority=priority,
 				deadline_acquire=acquire_deadline,
-				deadline_deliver=deliver_deadline,
-				bundle_lifetime=ttl,
+				bundle_lifetime=deliver_time,
 				time_created=env.now,
 			)
 			moc.request_received(request)
+			pub.sendMessage("request_submit", r=request)
 			request = moc.request_queue.pop(0)
 			success = moc.process_request(request, env.now)
 			if success:
-				pub.sendMessage("request_submit", r=request)
 				break
 			if len(sources_tried) == len(sources):
 				num_fails += 1
@@ -152,17 +152,16 @@ def create_route_tables(nodes, destinations, t_now=0, end_time=sys.maxsize) -> N
 			)
 
 
-def init_analytics(ignore_start=0, ignore_end=0):
+def init_analytics(duration, ignore_start=0, ignore_end=0):
 	"""The analytics module tracks events that occur during the simulation.
 
 	This includes keeping a log of every request, task and bundle object, and counting
 	the number of times a specific movement is made (e.g. forwarding, dropping,
 	state transition etc).
 	"""
-	a = Analytics(inputs["simulation"]["duration"], ignore_start, ignore_end)
+	a = Analytics(duration, ignore_start, ignore_end)
 
 	pub.subscribe(a.submit_request, "request_submit")
-	pub.subscribe(a.fail_request, "request_fail")
 	pub.subscribe(a.duplicated_request, "request_duplicated")
 
 	pub.subscribe(a.add_task, "task_add")
@@ -266,28 +265,27 @@ if __name__ == "__main__":
 	# set up the space network nodes (satellites and gateways, and if known in advance,
 	# the targets)
 	filename = "input_files//walker_delta_16.json"
-	with open(filename, "r") as read_content:
-		inputs = json.load(read_content)
+	with open(filename, "rb") as read_content:
+		inputs = json.load(read_content, object_hook=lambda d: SimpleNamespace(**d))
 
-	sim_epoch = inputs["simulation"]["date_start"]
-	sim_duration = inputs["simulation"]["duration"]
-	sim_step_size = inputs["simulation"]["step_size"]
-	times = [x for x in range(0, sim_duration, sim_step_size)]
-	# FIXME This won't work if we have multiple types of bundles with different sizes
-	bundle_size = inputs["traffic"]["size"]
+	times = [x for x in range(0, inputs.simulation.duration, inputs.simulation.step_size)]
 
 	targets, satellites, gateways = init_space_network(
-		sim_epoch, sim_duration, sim_step_size, inputs["targets"], inputs["satellites"],
-		inputs["gateways"]
+		inputs.simulation.date_start,
+		inputs.simulation.duration,
+		inputs.simulation.step_size,
+		inputs.targets,
+		inputs.satellites,
+		inputs.gateways
 	)
 	print("Node propagation complete")
 
 	rates = get_data_rate_pairs(
 		[*satellites],
 		[*gateways],
-		inputs["satellites"]["rate_isl"],
-		inputs["satellites"]["rate_s2g"],
-		inputs["gateways"]["rate"]
+		inputs.satellites.rate_isl,
+		inputs.satellites.rate_s2g,
+		inputs.gateways.rate
 	)
 
 	# Get Contact Plan from the relative mobility between satellites, targets (sources)
@@ -314,8 +312,8 @@ if __name__ == "__main__":
 	# be up-to-date in terms of the Task Table
 	for g_uid, g in gateways.items():
 		# TODO Fix how we're defining the EIDs here, hardcoding isn't good
-		cp.insert(0, Contact(SCHEDULER_ID, g_uid, ENDPOINT_ID, 0, sim_duration, sys.maxsize))
-		cp.insert(0, Contact(g_uid, SCHEDULER_ID, SCHEDULER_ID, 0, sim_duration, sys.maxsize))
+		cp.insert(0, Contact(SCHEDULER_ID, g_uid, ENDPOINT_ID, 0, inputs.simulation.duration, sys.maxsize))
+		cp.insert(0, Contact(g_uid, SCHEDULER_ID, SCHEDULER_ID, 0, inputs.simulation.duration, sys.maxsize))
 
 	# Instantiate the Mission Operations Center, i.e. the Node at which requests arrive
 	# and then set up each of the remote nodes (including both satellites and gateways).
@@ -348,10 +346,10 @@ if __name__ == "__main__":
 	#  TTL and make sure that the whole target set is serviced on a fairly regular
 	#  basis, we should be able to ensure execution.
 	request_arrival_wait_time = get_request_inter_arrival_time(
-			sim_duration,
+			inputs.simulation.duration,
 			download_capacity,
-			inputs["traffic"]["congestion"],
-			bundle_size
+			inputs.traffic.congestion,
+			inputs.traffic.size
 		)
 
 	# FIXME Urghhh
@@ -361,19 +359,30 @@ if __name__ == "__main__":
 		{**satellites,  **gateways},
 		cp,
 		cp_with_targets,
-		inputs["traffic"]["msr"]
+		inputs.traffic.msr
 	)
 
-	# TODO Replace this with locally invoked Route Discovery or central route discovery
-	#  and realistic deployment of the tables through the network
+	# TODO Currently not able to accept VERY long lifetimes
+	# This is the time up to when we'll discover routes to. This is basically the time,
+	# from now, until any new request must have been completely handled, plus an
+	# additional bundle TTL on top
+	end_time = inputs.traffic.max_time_to_acquire + 2 * inputs.traffic.max_time_to_deliver
+
 	create_route_tables(
 		nodes=nodes,
 		destinations=[ENDPOINT_ID],
-		end_time=inputs["traffic"]["bundle_lifetime"]
+		end_time=end_time
 	)
 	print("Route tables constructed")
 
-	analytics = init_analytics(1000, 1000)
+	# Time until the network is fully populated with "steady state" data flow
+	warm_up = 5000
+
+	# Time after which we ignore any new requests and their associated tasks/bundles.
+	cool_down = 2 * (inputs.traffic.max_time_to_acquire + inputs.traffic.max_time_to_deliver)
+
+	# Set up the analytics module.
+	analytics_ = init_analytics(inputs.simulation.duration, warm_up, cool_down)
 
 	# ************************ BEGIN THE SIMULATION PROCESS ************************
 	# Initiate the simpy environment, which keeps track of the event queue and triggers
@@ -382,14 +391,13 @@ if __name__ == "__main__":
 	env.process(requests_generator(
 		env,
 		targets,
-		[inputs["targets"]["destination"]],
+		[inputs.targets.destination],
 		moc,
 		request_arrival_wait_time,
-		bundle_size,
-		inputs["traffic"]["priority"],
-		inputs["traffic"]["max_time_to_acquire"],
-		inputs["traffic"]["max_time_to_deliver"],
-		inputs["traffic"]["bundle_lifetime"]
+		inputs.traffic.size,
+		inputs.traffic.priority,
+		inputs.traffic.max_time_to_acquire,
+		inputs.traffic.max_time_to_deliver,
 	))
 
 	# Set up the Simpy Processes on each of the Nodes. These are effectively the
@@ -405,29 +413,36 @@ if __name__ == "__main__":
 		#  We could actually have something that watches our Route Tables and triggers
 		#  the Route Discovery whenever we drop below a certain number of good options
 
-	# env.run(until=sim_duration)
-	cProfile.run('env.run(until=sim_duration)')
+	# env.run(until=inputs.simulation.duration - (cooldown/2))
+	cProfile.run('env.run(until=inputs.simulation.duration-(cool_down/2))')
+
+	with open("results//results", "wb") as file:
+		pickle.dump(analytics_, file)
 
 	print(f"Total download capacity was {download_capacity} units")
+
 	print("*** REQUEST DATA ***")
-	print(f"{analytics.requests_submitted_count} Requests were submitted")
-	print(f"{analytics.requests_failed_count} Requests could not be fulfilled")
-	print(f"{analytics.requests_duplicated_count} Requests already handled by existing tasks\n")
+	print(f"{len(analytics_.get_all_requests_in_active_period())} Requests were submitted")
+	print(f"{len(analytics_.get_failed_requests_in_active_period())} Requests could not be fulfilled")
+	# print(f"{analytics_.requests_duplicated_count} Requests already handled by existing tasks\n")
+
 	print("*** TASK DATA ***")
-	print(f"{analytics.tasks_processed_count} Tasks were created")
-	print(f"{analytics.tasks_failed_count} Tasks were unsuccessful\n")
+	# print(f"{analytics_.tasks_processed_count} Tasks were created")
+	# print(f"{analytics_.tasks_failed_count} Tasks were unsuccessful\n")
+
 	print("*** BUNDLE DATA ***")
-	print(f"{analytics.bundles_acquired_count} Bundles were acquired")
-	print(f"{analytics.bundles_forwarded_count} Bundles were forwarded")
-	print(f"{analytics.bundles_delivered_count} Bundles were delivered")
-	print(f"{analytics.bundles_dropped_count} Bundles were dropped\n")
+	print(f"{len(analytics_.get_all_bundles_in_active_period())} Bundles were acquired")
+	print(f"{analytics_.bundles_forwarded_count} Bundles were forwarded")
+	print(f"{len(analytics_.get_bundles_delivered_in_active_period())} Bundles were delivered")
+	print(f"{len(analytics_.get_bundles_failed_in_active_period())} Bundles were dropped\n")
+
 	print("*** PERFORMANCE DATA ***")
-	print(f"The average bundle PICKUP latency is {analytics.pickup_latency_ave}")
-	print(f"The bundle PICKUP latency Std. Dev. is {analytics.pickup_latency_stdev}")
-	print(f"The average bundle DELIVERY latency is {analytics.delivery_latency_ave}")
-	print(f"The bundle DELIVERY latency Std. Dev. is {analytics.delivery_latency_stdev}")
-	print(f"The average bundle REQUEST latency is {analytics.request_latency_ave}")
-	print(f"The bundle REQUEST latency Std. Dev. is {analytics.request_latency_stdev}")
+	print(f"The average bundle PICKUP latency is {analytics_.pickup_latency_ave}")
+	print(f"The bundle PICKUP latency Std. Dev. is {analytics_.pickup_latency_stdev}")
+	print(f"The average bundle DELIVERY latency is {analytics_.delivery_latency_ave}")
+	print(f"The bundle DELIVERY latency Std. Dev. is {analytics_.delivery_latency_stdev}")
+	print(f"The average bundle REQUEST latency is {analytics_.request_latency_ave}")
+	print(f"The bundle REQUEST latency Std. Dev. is {analytics_.request_latency_stdev}")
 
 	print('')
 

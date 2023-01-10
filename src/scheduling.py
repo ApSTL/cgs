@@ -17,7 +17,7 @@ class Request:
     target_lon: float = None
     target_alt: float = None
     deadline_acquire: int = sys.maxsize
-    deadline_deliver: int = sys.maxsize
+    # deadline_deliver: int = sys.maxsize
     bundle_lifetime: int = sys.maxsize
     priority: int = 0
     destination: int = 999
@@ -25,9 +25,6 @@ class Request:
     time_created: int = None
     __uid: str = field(init=False, default_factory=lambda: id_generator())
     status: str = "initiated"
-
-    def __post_init__(self):
-        self.deadline_acquire = min(self.deadline_acquire, self.deadline_deliver)
 
     @property
     def uid(self):
@@ -42,7 +39,6 @@ class Task:
             "delivered" or "failed"
     """
     deadline_acquire: int = sys.maxsize
-    deadline_delivery: int = sys.maxsize
     lifetime: int = sys.maxsize
     target: int = 0
     priority: int = 0
@@ -56,6 +52,7 @@ class Task:
     acq_path: List = field(default_factory=list)
     del_path: List = field(default_factory=list)
     request_ids: List = field(default_factory=list)
+    requests: List[Request] = field(default_factory=list)
 
     acquired_at: int | float = field(init=False, default=None)
     acquired_by: int = field(init=False, default=None)
@@ -231,15 +228,6 @@ class Scheduler:
                 request, curr_time, assignee, pickup_time, delivery_time, acq_path_,
                 del_path_)
 
-        else:
-            # If no assignee has been identified, then it means there's no feasible way
-            # the data can be acquired and delivered that fulfills the requirements.
-            # TODO add in some exception that handles a lack of feasible acquisition
-            # print(f"No task was created for request {request.uid} as either acquisition "
-            #       f"or delivery wasn't feasible")
-            request.status = "infeasible"
-            pub.sendMessage("request_fail")
-            return
 
     def _cgs_routing(self, src: int, request: Request, curr_time: int, contact_plan
                      ) -> tuple:
@@ -327,15 +315,11 @@ class Scheduler:
             root_delivery.arrival_time = path_acq.best_delivery_time
 
             # Identify best route to the destination from our current acquiring node
-            end_time = min(
-                request.deadline_deliver,
-                request.deadline_acquire + request.bundle_lifetime
-            )
             path_del = cgr_dijkstra(
                 root_delivery,
                 request.destination,
                 contact_plan,
-                end_time,
+                path_acq.best_delivery_time + request.bundle_lifetime,
                 request.data_volume
             )
 
@@ -345,8 +329,22 @@ class Scheduler:
                 continue
 
             # If this delivery route is better than our current "best", assign it
-            if path_del.best_delivery_time < earliest_delivery_time:
-                earliest_delivery_time = path_del.best_delivery_time
+            # FIXME This really needs to be treated like the forwarding process,
+            #  considering backlog as well as actual times at which bundles can
+            #  feasibly reach the destination. This currently just goes some way to
+            #  making sure we're not getting delivered before we've even acquired... If
+            #  our delivery path was multiple hops, and our bundle was large, it would
+            #  take time for each hop to be completed, even if they're all connected
+            #  from the time it begins.
+            current_bdt = max(
+                path_del.best_delivery_time,
+                root_delivery.arrival_time + sum(
+                    [c.owlt + c.rate * request.data_volume for c in path_del.hops]
+                )
+            )
+
+            if current_bdt < earliest_delivery_time:
+                earliest_delivery_time = current_bdt
                 path_acq_selected = path_acq
                 path_del_selected = path_del
 
@@ -356,7 +354,6 @@ class Scheduler:
                      delivery_time=None, acq_path_=None, del_path_=None) -> Task:
         task = Task(
             deadline_acquire=request.deadline_acquire,
-            deadline_delivery=request.deadline_deliver,
             lifetime=request.bundle_lifetime,
             target=request.target_id,
             priority=request.priority,
@@ -372,6 +369,7 @@ class Scheduler:
         )
 
         task.request_ids.append(request.uid)
+        task.requests.append(request)
         pub.sendMessage("task_add", t=task)
         return task
 

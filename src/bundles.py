@@ -4,6 +4,8 @@ import sys
 from dataclasses import dataclass, field
 from typing import List
 
+from scheduling import Task
+
 
 @dataclass
 class Buffer:
@@ -96,6 +98,7 @@ class Bundle:
 	critical: bool = False
 	fragment: bool = True
 	task_id: str | int = None
+	task: Task = None
 	obey_route: bool = False
 	current: int = None
 	delivered_at: float = None

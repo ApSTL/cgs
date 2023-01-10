@@ -8,9 +8,6 @@ class Analytics:
 		self.start = ignore_start
 		self.end = sim_time - ignore_end
 		self.requests = {}
-		self.requests_failed_count = 0
-
-		# The number of submitted requests already handled by existing tasks
 		self.requests_duplicated_count = 0
 
 		self.tasks = {}
@@ -28,28 +25,41 @@ class Analytics:
 		self.bundles_dropped_count = 0
 		self.bundles_rerouted_count = 0
 
+	def get_all_bundles_in_active_period(self):
+		"""
+		Return list of all bundles originating from requests in active period
+		"""
+		return [
+			b for b in self.bundles if
+			self.start <= b.task.requests[0].time_created <= self.end
+		]
+
 	def get_bundles_delivered_in_active_period(self):
+		"""
+		Return list of delivered bundles originating from requests in active period
+		"""
 		return [
 			b for b in self.bundles_delivered if
-			self.start <= self.requests[self.tasks[b.task_id].request_ids[0]].time_created
-			and b.delivered_at <= self.end
+			self.start <= b.task.requests[0].time_created <= self.end
 		]
 
 	def get_bundles_failed_in_active_period(self):
+		"""
+		Return list of dropped bundles originating from requests in active period
+		"""
 		return [
 			b for b in self.bundles_failed if
-			self.start <= self.requests[self.tasks[b.task_id].request_ids[0]].time_created
-			and b.dropped_at <= self.end
+			self.start <= b.task.requests[0].time_created <= self.end
 		]
 
 	@property
 	def pickup_latencies(self):
-		# List of all times between request submission and bundle creation for ALL
-		# bundles deemed "valid" for analysis
+		"""List of times between request submission and bundle creation for all bundles
+
+		"""
 		return [
-			b.created_at - self.requests[self.tasks[b.task_id].request_ids[
-				0]].time_created
-			for b in self.get_bundles_delivered_in_active_period() + self.get_bundles_failed_in_active_period()
+			b.created_at - b.task.requests[0].time_created
+			for b in self.get_all_bundles_in_active_period()
 		]
 
 	@property
@@ -62,10 +72,16 @@ class Analytics:
 
 	@property
 	def delivery_latencies(self):
-		# List of times from bundle creation and bundle delivery
+		"""List of times from bundle creation and bundle delivery.
+
+		The "delivery latency" for dropped bundle is set to be the full time to live
+		"""
 		return [
 			b.delivered_at - b.created_at
 			for b in self.get_bundles_delivered_in_active_period()
+		] + [
+			b.deadline - b.created_at
+			for b in self.get_bundles_failed_in_active_period()
 		]
 
 	@property
@@ -80,8 +96,7 @@ class Analytics:
 	def request_latencies(self):
 		# List of times between bundle delivery and request submission
 		return [
-			b.delivered_at - self.requests[self.tasks[b.task_id].request_ids[0]].time_created
-			for b in self.get_bundles_delivered_in_active_period()
+			x[0] + x[1] for x in zip(self.pickup_latencies, self.delivery_latencies)
 		]
 
 	@property
@@ -92,12 +107,24 @@ class Analytics:
 	def request_latency_stdev(self):
 		return stdev(self.request_latencies)
 
-	def get_requests_in_active_period(self):
-		bundles = self.get_bundles_delivered_in_active_period() + self.get_bundles_failed_in_active_period()
+	def get_all_requests_in_active_period(self):
 		return [
-			r for r in [
-				self.requests[self.tasks[b.task_id].request_ids[0]] for b in bundles
-			]
+			r for r in self.requests.values()
+			if self.start <= r.time_created <= self.end
+		]
+
+	def get_delivered_requests_in_active_period(self):
+		return [
+			r for r in self.requests.values()
+			if self.start <= r.time_created <= self.end
+			and r.status == "delivered"
+		]
+
+	def get_failed_requests_in_active_period(self):
+		return [
+			r for r in self.requests.values()
+			if self.start <= r.time_created <= self.end
+			and r.status == "failed"
 		]
 
 	def submit_request(self, r):
@@ -105,11 +132,17 @@ class Analytics:
 
 	@property
 	def requests_submitted_count(self):
-		return len(self.requests)
+		return len(self.get_all_requests_in_active_period())
 
-	def fail_request(self):
-		self.requests_failed_count += 1
+	@property
+	def requests_delivered_count(self):
+		return len(self.get_delivered_requests_in_active_period())
 
+	@property
+	def requests_failed_count(self):
+		return len(self.get_failed_requests_in_active_period())
+
+	# FIXME update this
 	def duplicated_request(self):
 		self.requests_duplicated_count += 1
 

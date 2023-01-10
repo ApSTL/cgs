@@ -592,7 +592,7 @@ def contact_selection(contact_plan, bdt, deadline):
 def candidate_routes(curr_time, curr_node, contact_plan, bundle, routes,
                      excluded_nodes, obq=None, debug=False):
 
-    return_to_sender = False
+    return_to_sender = True
     candidate_routes = []
 
     for route in routes:

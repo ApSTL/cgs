@@ -255,13 +255,13 @@ class Orbit:
 def setup_ground_nodes(jd_start, duration, t_step, nodes, is_source=False, id_counter=0):
     nodes_dict = {}
     locations = []
-    if nodes["type"] == "bespoke":
-        for loc in nodes["locations"]:
-            locations.append([loc["lat"], loc["lon"], loc.get("alt", 0)])
+    if nodes.type == "bespoke":
+        for loc in nodes.locations:
+            locations.append([loc.lat, loc.lon, getattr(loc, "alt", 0)])
 
-    elif nodes["type"] == "group":
-        if nodes["distribution"] == "even":
-            points_scaled = generate_even_dist_on_earth(nodes["n"])
+    elif nodes.type == "group":
+        if nodes.distribution == "even":
+            points_scaled = generate_even_dist_on_earth(nodes.n)
             for p in points_scaled:
                 lat, lon, alt = eci_to_geod(jd_start, p)
                 locations.append([degrees(lat), degrees(lon), alt])
@@ -272,7 +272,7 @@ def setup_ground_nodes(jd_start, duration, t_step, nodes, is_source=False, id_co
             location[0],
             location[1],
             location[2],
-            min_el=nodes["min_el"],
+            min_el=nodes.min_el,
             is_source=is_source
         )
         n.eci_coords(jd_start, duration, t_step)
@@ -284,15 +284,15 @@ def setup_ground_nodes(jd_start, duration, t_step, nodes, is_source=False, id_co
 
 def setup_satellites(jd_start, duration, t_step, satellites, counter=0):
     satellites_dict = {}
-    for sat in satellites["orbits"]:
+    for sat in satellites.orbits:
         s = Spacecraft(counter)
         ic = [
-            sat["sma"]*1000,
-            sat["ecc"],
-            radians(sat["inc"]),
-            radians(sat["raan"]),
-            radians(sat["aop"]),
-            radians(sat["ta"])
+            sat.sma*1000,
+            sat.ecc,
+            radians(sat.inc),
+            radians(sat.raan),
+            radians(sat.aop),
+            radians(sat.ta)
         ]
         s.get_orbit(ic, 'coe', jd_start, duration, t_step)
         satellites_dict[counter] = s

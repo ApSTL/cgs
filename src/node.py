@@ -142,6 +142,12 @@ class Node:
             self._update_task_change_tracker(task.uid, [])
             return True
 
+        # If no assignee has been identified, then it means there's no feasible way
+        # the data can be acquired and delivered that fulfills the requirements.
+        # TODO add in some exception that handles a lack of feasible acquisition
+        # print(f"No task was created for request {request.uid} as either acquisition "
+        #    f"or delivery wasn't feasible")
+        pub.sendMessage("request_fail")
         request.status = "failed"
         self.failed_requests.append(request)
         return False
@@ -230,7 +236,7 @@ class Node:
             task.acquired(t_now, self.uid)
 
     def _acquire_bundle(self, t_now, task):
-        bundle_deadline = min(task.deadline_delivery, t_now + task.lifetime)
+        bundle_deadline = t_now + task.lifetime
         bundle = Bundle(
             src=self.uid,
             dst=task.destination,
@@ -240,6 +246,7 @@ class Node:
             created_at=t_now,
             priority=task.priority,
             task_id=task.uid,
+            task=task,
             obey_route=self.msr,
             current=self.uid
 
@@ -272,6 +279,7 @@ class Node:
                          if t.uid in self._task_table_updates[contact.to]]
                     )
                 )
+                self._task_table_updates[contact.to] = []
                 yield env.timeout(0)
                 continue
 
@@ -337,6 +345,7 @@ class Node:
             delay,
             [t for t in self.task_table.values() if t.uid in self._task_table_updates[to]]
         ))
+        self._task_table_updates[to] = []
 
     def _update_task_change_tracker(self, task_id: str, excluded: List[int]):
         """Updates dict that tracks tasks that may have changed for each other node.
@@ -360,8 +369,6 @@ class Node:
                 task_table={t.uid: t for t in updated_tasks},
                 frm=self.uid
             )
-            # Indicate that there's no longer any task updates pending for this node
-            self._task_table_updates[to] = []
             break
 
     def task_table_receive(self, task_table, frm):
@@ -421,6 +428,7 @@ class Node:
             if self.task_table:
                 self.task_table[bundle.task_id].delivered(
                     t_now, bundle.previous_node, self.uid)
+                bundle.task.requests[0].status = "delivered"
                 self._update_task_change_tracker(bundle.task_id, [])
             return
 
@@ -461,11 +469,13 @@ class Node:
             else:
                 max_delivery_time = 0
 
-            if max_delivery_time < self.buffer.final_deadline_for_destination(dest):
+            # TODO need a better approach to this
+            # if max_delivery_time < self.buffer.final_deadline_for_destination(dest):
+            if max_delivery_time < t_now + 5000:
                 self.route_table[dest] = self._route_discovery(
                     dest,
                     t_now,
-                    self.buffer.final_deadline_for_destination(dest) + 3600,  # TODO
+                    t_now + 10000,  # TODO
                 )
 
     def _route_discovery(self, destination, from_time, end_time):
