@@ -110,7 +110,12 @@ def bundle_generator(env, sources, destinations):
 		pub.sendMessage("bundle_acquired", b=b)
 
 
-def init_space_nodes(nodes, cp, cpwt, msr=True, uncertainty: float = 1.0):
+def init_space_nodes(
+		nodes, cp, cpwt, msr=True, uncertainty: float = 1.0, scheduler=0,
+		scheme: List = None
+) -> List[Node]:
+	if scheme is None:
+		scheme = [True, True, True, True, True]
 	node_ids = [x for x in nodes]
 	# TODO more generalised way to do this??
 	node_ids.append(SCHEDULER_ID)
@@ -120,6 +125,16 @@ def init_space_nodes(nodes, cp, cpwt, msr=True, uncertainty: float = 1.0):
 		#  endpoint ID so that they can all be the "destination". This should be more
 		#  flexible, so that we can group nodes together in bespoke ways
 		eid = ENDPOINT_ID if isinstance(n, GroundNode) else n_uid
+
+		# Define the scheduler (if it has one)
+		sched = Scheduler(
+				valid_pickup=scheme[0],
+				define_pickup=scheme[1],
+				valid_delivery=scheme[2],
+				resource_aware=scheme[3],
+				define_delivery=scheme[4]
+			) if scheduler else None
+			
 		n = Node(
 			n_uid,
 			eid,
@@ -128,9 +143,10 @@ def init_space_nodes(nodes, cp, cpwt, msr=True, uncertainty: float = 1.0):
 			contact_plan=deepcopy(cp),
 			contact_plan_targets=deepcopy(cpwt),
 			msr=msr,
-			uncertainty=uncertainty
+			uncertainty=uncertainty,
+			scheduler=sched
 		)
-		#
+		n.scheduler.parent = n
 		pub.subscribe(n.bundle_receive, str(n_uid) + "bundle")
 		pub.subscribe(n.task_table_receive, str(n_uid) + "task_table")
 		node_list.append(n)
@@ -314,7 +330,10 @@ def build_moc(cp, cpt, sats, gws, scheme: List = None):
 	return moc
 
 
-def main(inputs_, scheme: List = None, uncertainty: float = 1.0):
+def main(inputs_, scheme: List = None, uncertainty: float = 1.0, scheduler: int = 0):
+	"""
+
+	"""
 	pub.unsubAll()
 	random.seed(0)
 
@@ -371,7 +390,9 @@ def main(inputs_, scheme: List = None, uncertainty: float = 1.0):
 		cp_wo_targets,
 		cp_only_targets,
 		inputs_.traffic.msr,
-		uncertainty
+		uncertainty,
+		scheduler,
+		scheme
 	)
 
 	create_route_tables(
