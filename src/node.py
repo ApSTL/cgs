@@ -623,6 +623,22 @@ class Node:
                 break
 
             if not assigned:
+                if self.scheduler:
+                    resched = self.process_request(
+                        Request(
+                            target_id=self.task_table[b.task_id].target,
+                            deadline_acquire=self.task_table[b.task_id].deadline_acquire,
+                            bundle_lifetime=self.task_table[b.task_id].lifetime,
+                            destination=self.task_table[b.task_id].destination,
+                            data_volume=self.task_table[b.task_id].size,
+                            time_created=t_now
+                        ),
+                        t_now
+                    )
+                    if resched:
+                        self.task_table[b.task_id].rescheduled(t_now, self.uid)
+                    else:
+                        self.task_table[b.task_id].failed(t_now, self.uid)
                 b.dropped_at = t_now
                 self.drop_list.append(b)
                 if DEBUG:

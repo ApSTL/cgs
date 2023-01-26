@@ -33,9 +33,8 @@ congestions = [0.1, 1.0]
 
 # Scheduling capabilities can either be:
 #   0. Centralised (normal) - No local rescheduling
-#   1. Decentralised (pre-acquire only) - Can reschedule tasks before they're acquired
-#   2. Decentralised (any) - Can reschedule tasks at any time (if feasible)
-schedulers = [0, 1, 2]
+#   1. Decentralised - Can reschedule tasks locally, if either the Task or bundle fail
+schedulers = [0, 1]
 
 filename = "input_files//walker_delta_16.json"
 results_file_base = "results//decentral//results"
