@@ -224,7 +224,26 @@ class Node:
 
             # If the task has a LATER scheduled pickup time, skip
             if task.pickup_time and task.pickup_time > t_now:
-                continue
+                    continue
+
+            # TODO May need to be a little flexible on this, rather than immediately
+            #  going to rescheduling
+            if task.pickup_time < t_now and self.scheduler:
+                resched = self.process_request(
+                    Request(
+                        target_id=target,
+                        deadline_acquire=task.deadline_acquire,
+                        bundle_lifetime=task.lifetime,
+                        destination=task.destination,
+                        data_volume=task.size,
+                        time_created=t_now
+                    ),
+                    t_now
+                )
+                if resched:
+                    task.rescheduled(t_now, self.uid)
+                else:
+                    task.failed(t_now, self.uid)
 
             # If there's insufficient buffer capacity to complete the task, and the
             # task has been scheduled to be acquired by us, at this time, set the task

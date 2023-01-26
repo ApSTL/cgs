@@ -134,7 +134,7 @@ def init_space_nodes(
 				resource_aware=scheme[3],
 				define_delivery=scheme[4]
 			) if scheduler else None
-			
+
 		n = Node(
 			n_uid,
 			eid,

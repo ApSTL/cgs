@@ -35,7 +35,7 @@ class Request:
 class Task:
     """
     Args:
-        status: Options include: "pending", "acquired", "redundant", "rescheduled",
+        status: Options include: "pending", "acquired", "rescheduled",
             "delivered" or "failed"
     """
     deadline_acquire: int = sys.maxsize
@@ -61,6 +61,8 @@ class Task:
     delivered_to: int = field(init=False, default=None)
     failed_at: int | float = field(init=False, default=None)
     failed_on: int = field(init=False, default=None)
+    rescheduled_at: int | float = field(init=False, default=None)
+    rescheduled_by: int = field(init=False, default=None)
     status: str = field(init=False, default="pending")
     __uid: str = field(init=False, default_factory=lambda: id_generator())
 
@@ -68,21 +70,26 @@ class Task:
     def uid(self):
         return self.__uid
 
-    def acquired(self, t, by):
+    def acquired(self, t: float, by: int):
         self.status = "acquired"
         self.acquired_at = t
         self.acquired_by = by
 
-    def delivered(self, t, by, to):
+    def delivered(self, t: float, by: int, to: int):
         self.status = "delivered"
         self.delivered_at = t
         self.delivered_by = by
         self.delivered_to = to
 
-    def failed(self, t, node):
+    def failed(self, t: float, node: int):
         self.status = "failed"
         self.failed_at = t
         self.failed_on = node
+
+    def rescheduled(self, t: float, by: int):
+        self.status = "rescheduled"
+        self.rescheduled_at = t
+        self.rescheduled_by = by
 
     def __lt__(self, other):
         """Order Tasks based on their status value
