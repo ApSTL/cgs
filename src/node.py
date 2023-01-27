@@ -176,6 +176,15 @@ class Node:
                     request.time_created:
                 return task
 
+    def task_rescheduling(self, task, t_now):
+        if self.process_request(task.requests[0], t_now):
+            task.rescheduled(t_now, self.uid)
+            pub.sendMessage("task_reschedule", task=task.uid)
+            return
+
+        task.failed(t_now, self.uid)
+        pub.sendMessage("task_failed", task=task.uid, t=t_now, on=self.uid)
+
     # *** CONTACT HANDLING ***
     def contact_controller(self, env):
         """Generator that iterates over every contact in which this node is the sender.
@@ -204,6 +213,7 @@ class Node:
         the target with whom we're in contact and, if there's an assignee (and by
         association a pick-up time) the ID matches ours
         """
+        for_reschedule = []
         for task_id, task in self.task_table.items():
 
             # If the task is not needing to be executed
@@ -224,27 +234,12 @@ class Node:
 
             # If the task has a LATER scheduled pickup time, skip
             if task.pickup_time and task.pickup_time > t_now:
-                    continue
+                continue
 
             # TODO May need to be a little flexible on this, rather than immediately
             #  going to rescheduling
             if task.pickup_time < t_now and self.scheduler:
-                resched = self.process_request(
-                    Request(
-                        target_id=target,
-                        deadline_acquire=task.deadline_acquire,
-                        bundle_lifetime=task.lifetime,
-                        destination=task.destination,
-                        data_volume=task.size,
-                        time_created=t_now
-                    ),
-                    t_now
-                )
-                if resched:
-                    task.rescheduled(t_now, self.uid)
-                    pub.sendMessage("task_reschedule", task=task)
-                else:
-                    task.failed(t_now, self.uid)
+                for_reschedule.append(task)
                 continue
 
             # If there's insufficient buffer capacity to complete the task, and the
@@ -263,6 +258,9 @@ class Node:
             # Otherwise, pick up the bundle :)
             self._acquire_bundle(t_now, task)
             task.acquired(t_now, self.uid)
+
+        for task in for_reschedule:
+            self.task_rescheduling(task, t_now)
 
     def _acquire_bundle(self, t_now, task):
         bundle_deadline = t_now + task.lifetime
@@ -626,21 +624,7 @@ class Node:
 
             if not assigned:
                 if self.scheduler:
-                    resched = self.process_request(
-                        Request(
-                            target_id=self.task_table[b.task_id].target,
-                            deadline_acquire=self.task_table[b.task_id].deadline_acquire,
-                            bundle_lifetime=self.task_table[b.task_id].lifetime,
-                            destination=self.task_table[b.task_id].destination,
-                            data_volume=self.task_table[b.task_id].size,
-                            time_created=t_now
-                        ),
-                        t_now
-                    )
-                    if resched:
-                        self.task_table[b.task_id].rescheduled(t_now, self.uid)
-                    else:
-                        self.task_table[b.task_id].failed(t_now, self.uid)
+                    self.task_rescheduling(self.task_table[b.task_id], t_now)
                 b.dropped_at = t_now
                 self.drop_list.append(b)
                 if DEBUG:

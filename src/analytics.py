@@ -29,7 +29,7 @@ class Analytics:
 		self.tasks[t.uid] = t
 
 	def reschedule_task(self, task):
-		self.tasks[task.uid].status = "rescheduled"
+		self.tasks[task].status = "rescheduled"
 
 	def fail_task(self, task, t, on):
 		# If this task has already been fulfilled elsewhere, don't set to failed
