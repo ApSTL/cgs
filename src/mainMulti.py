@@ -25,17 +25,17 @@ schemes = {
 }
 
 # uncertainties = [1.0, 0.9, 0.8, 0.7]
-uncertainties = [0.7]
+uncertainties = [0.7, 1.0]
 
-# congestions = [.1, .2, .3, .4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.]
+congestions = [.1, .2, .3, .4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.]
 # congestions = np.linspace(0.1, 0.9, 3)
-congestions = [1.0]
+# congestions = [1.0]
 
 # Scheduling capabilities can either be:
 #   0. Centralised (normal) - No local rescheduling
 #   1. Decentralised - Can reschedule tasks locally, if either the Task or bundle fail
 schedulers = {
-	# 0: "central",
+	0: "central",
 	1: "decentral"
 }
 

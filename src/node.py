@@ -292,10 +292,10 @@ class Node:
         """
         if DEBUG:
             print(f"contact started on {self.uid} with {contact.to} at {env.now}")
-        # if random.random() > self.uncertainty:
-        #     contact.end = env.now
-        # else:
-        self._handshake(env, contact.to, contact.owlt)
+        if random.random() > self.uncertainty:
+            contact.end = env.now
+        else:
+            self._handshake(env, contact.to, contact.owlt)
         while env.now < contact.end:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the

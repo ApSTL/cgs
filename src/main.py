@@ -146,7 +146,8 @@ def init_space_nodes(
 			uncertainty=uncertainty,
 			scheduler=sched
 		)
-		n.scheduler.parent = n if scheduler else None
+		if scheduler:
+			n.scheduler.parent = n
 		pub.subscribe(n.bundle_receive, str(n_uid) + "bundle")
 		pub.subscribe(n.task_table_receive, str(n_uid) + "task_table")
 		node_list.append(n)
