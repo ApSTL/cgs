@@ -128,6 +128,7 @@ class Analytics:
 	def request_latency_stdev(self):
 		return stdev(self.request_latencies)
 
+	# ****************************** HOP-COUNTS ********************************
 	@property
 	def hop_count_average_all(self):
 		bundles = self.get_all_bundles_in_active_period()
@@ -247,6 +248,18 @@ class Analytics:
 	@property
 	def tasks_failed_count(self):
 		return len(self.get_tasks_failed_in_active_period())
+
+	@property
+	def tasks_rescheduled_count(self):
+		return len(self.get_tasks_rescheduled_in_active_period())
+
+	@property
+	def tasks_rescheduled_pre_pickup_count(self):
+		return len(self.get_tasks_rescheduled_pre_pickup_in_active_period())
+
+	@property
+	def tasks_rescheduled_post_pickup_count(self):
+		return len(self.get_tasks_rescheduled_post_pickup_in_active_period())
 
 	@property
 	def task_delivery_ratio(self):
