@@ -227,9 +227,6 @@ class Node:
             if task.deadline_acquire < t_now:
                 task.failed(t_now, self.uid)
                 pub.sendMessage("task_failed", task=task_id, t=t_now, on=self.uid)
-
-            # If the task's target is not the node we're in contact with, skip
-            if task.target != target:
                 continue
 
             # If the task has a LATER scheduled pickup time, skip
@@ -242,17 +239,17 @@ class Node:
                 for_reschedule.append(task)
                 continue
 
+            # If the task's target is not the node we're in contact with, skip
+            if task.target != target:
+                continue
+
             # If there's insufficient buffer capacity to complete the task, and the
             # task has been scheduled to be acquired by us, at this time, set the task
             # to "redundant" so it can be rescheduled. Otherwise, just skip so that it
             # can perhaps be handled later, if still pending
-            # TODO Implement re-scheduling so that we can reassign this task to the
-            #  next best opportunity. Otherwise, we'll just wait until a viable
-            #  opportunity and complete it then.
             if self.buffer.capacity_remaining < task.size:
-                # if task.assignee and task.assignee == self.uid and task.pickup_time and\
-                #         task.pickup_time == t_now:
-                #     task.status = "redundant"
+                if self.scheduler:
+                    for_reschedule.append(task)
                 continue
 
             # Otherwise, pick up the bundle :)

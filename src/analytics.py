@@ -214,6 +214,24 @@ class Analytics:
 			if t.status == "failed"
 		]
 
+	def get_tasks_rescheduled_in_active_period(self):
+		return [
+			t for t in self.get_tasks_generated_in_active_period()
+			if t.status == "rescheduled"
+		]
+
+	def get_tasks_rescheduled_post_pickup_in_active_period(self):
+		return [
+			b.task for b in self.get_bundles_failed_in_active_period()
+			if b.task.status == "rescheduled"
+		]
+
+	def get_tasks_rescheduled_pre_pickup_in_active_period(self):
+		return [
+			t for t in self.get_tasks_rescheduled_in_active_period()
+			if t not in self.get_tasks_rescheduled_post_pickup_in_active_period()
+		]
+
 	@property
 	def tasks_processed_count(self):
 		return len(self.get_tasks_generated_in_active_period())
