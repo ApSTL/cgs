@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import sys
 from statistics import mean, stdev
+from pubsub import pub
 
 
 class Analytics:
@@ -26,6 +27,9 @@ class Analytics:
 
 	def add_task(self, t):
 		self.tasks[t.uid] = t
+
+	def reschedule_task(self, task):
+		self.tasks[task.uid].status = "rescheduled"
 
 	def fail_task(self, task, t, on):
 		# If this task has already been fulfilled elsewhere, don't set to failed
@@ -289,3 +293,25 @@ class Analytics:
 	@traffic_load.setter
 	def traffic_load(self, v):
 		self._traffic_load = v
+
+
+def init_analytics(duration, ignore_start=0, ignore_end=0, inputs=None):
+	"""The analytics module tracks events that occur during the simulation.
+
+	This includes keeping a log of every request, task and bundle object, and counting
+	the number of times a specific movement is made (e.g. forwarding, dropping,
+	state transition etc).
+	"""
+	a = Analytics(duration, ignore_start, ignore_end, inputs)
+
+	pub.subscribe(a.submit_request, "request_submit")
+
+	pub.subscribe(a.add_task, "task_add")
+	pub.subscribe(a.reschedule_task, "task_reschedule")
+	pub.subscribe(a.fail_task, "task_failed")
+
+	pub.subscribe(a.acquire_bundle, "bundle_acquired")
+	pub.subscribe(a.deliver_bundle, "bundle_delivered")
+	pub.subscribe(a.drop_bundle, "bundle_dropped")
+
+	return a

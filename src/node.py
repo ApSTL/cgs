@@ -242,8 +242,10 @@ class Node:
                 )
                 if resched:
                     task.rescheduled(t_now, self.uid)
+                    pub.sendMessage("task_reschedule", task=task)
                 else:
                     task.failed(t_now, self.uid)
+                continue
 
             # If there's insufficient buffer capacity to complete the task, and the
             # task has been scheduled to be acquired by us, at this time, set the task

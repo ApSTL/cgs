@@ -18,7 +18,7 @@ from scheduling import Scheduler, Request
 from bundles import Buffer, Bundle
 from spaceNetwork import setup_satellites, setup_ground_nodes, GroundNode
 from spaceMobility import review_contacts
-from analytics import Analytics
+from analytics import init_analytics
 
 
 SCHEDULER_BUFFER_CAPACITY = 1000
@@ -168,27 +168,6 @@ def create_route_tables(nodes, destinations, t_now=0) -> None:
 				n.contact_plan,
 				t_now,
 			)
-
-
-def init_analytics(duration, ignore_start=0, ignore_end=0, inputs=None):
-	"""The analytics module tracks events that occur during the simulation.
-
-	This includes keeping a log of every request, task and bundle object, and counting
-	the number of times a specific movement is made (e.g. forwarding, dropping,
-	state transition etc).
-	"""
-	a = Analytics(duration, ignore_start, ignore_end, inputs)
-
-	pub.subscribe(a.submit_request, "request_submit")
-
-	pub.subscribe(a.add_task, "task_add")
-	pub.subscribe(a.fail_task, "task_failed")
-
-	pub.subscribe(a.acquire_bundle, "bundle_acquired")
-	pub.subscribe(a.deliver_bundle, "bundle_delivered")
-	pub.subscribe(a.drop_bundle, "bundle_dropped")
-
-	return a
 
 
 def init_space_network(epoch, duration, step_size, targets_, satellites_, gateways_):
