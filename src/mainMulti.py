@@ -9,8 +9,8 @@ from main import main
 import misc as _misc
 
 
-def save_data(data, scheduling_scheme, rsl, base_file):
-	fn = f"{scheduling_scheme}_{round(rsl, 1)}"
+def save_data(data, scheduling_scheme, uncertainty, scheduler, rsl, base_file):
+	fn = f"{scheduling_scheme}_{uncertainty}_{scheduler}_{round(rsl, 1)}"
 	with open(f"{base_file}_{fn}", "wb") as file:
 		pickle.dump(data, file)
 
@@ -34,7 +34,7 @@ congestions = [0.1, 0.5, 1.0]
 # Scheduling capabilities can either be:
 #   0. Centralised (normal) - No local rescheduling
 #   1. Decentralised - Can reschedule tasks locally, if either the Task or bundle fail
-schedulers = [1]
+schedulers = {0: "central", 1: "decentral"}
 
 filename = "input_files//walker_delta_16.json"
 results_file_base = "results//decentral//results"
@@ -49,4 +49,4 @@ for con in congestions:
 			for scheduler in schedulers:
 				_misc.USED_IDS = set()
 				analytics = main(inputs, scheme, uncertainty, scheduler)
-				save_data(analytics, scheme_name, con, results_file_base)
+				save_data(analytics, scheme_name, uncertainty, schedulers[scheduler], con, results_file_base)

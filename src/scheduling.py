@@ -103,9 +103,6 @@ class Task:
             return True
         if self.status == "acquired" and other.status != "pending":
             return True
-        if self.status == "redundant" and \
-                (other.status != "pending" and other.status != "acquired"):
-            return True
         return False
 
     def __repr__(self):

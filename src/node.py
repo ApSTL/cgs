@@ -180,10 +180,12 @@ class Node:
         if self.process_request(task.requests[0], t_now):
             task.rescheduled(t_now, self.uid)
             pub.sendMessage("task_reschedule", task=task.uid)
+            self._update_task_change_tracker(task.uid, [])
             return
 
         task.failed(t_now, self.uid)
         pub.sendMessage("task_failed", task=task.uid, t=t_now, on=self.uid)
+        self._update_task_change_tracker(task.uid, [])
 
     # *** CONTACT HANDLING ***
     def contact_controller(self, env):
@@ -227,6 +229,7 @@ class Node:
             if task.deadline_acquire < t_now:
                 task.failed(t_now, self.uid)
                 pub.sendMessage("task_failed", task=task_id, t=t_now, on=self.uid)
+                self._update_task_change_tracker(task.uid, [])
                 continue
 
             # If the task has a LATER scheduled pickup time, skip
