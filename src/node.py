@@ -179,7 +179,7 @@ class Node:
     def task_rescheduling(self, task, t_now):
         if self.process_request(task.requests[0], t_now):
             task.rescheduled(t_now, self.uid)
-            pub.sendMessage("task_reschedule", task=task.uid)
+            pub.sendMessage("task_reschedule", task=task.uid, t=t_now, node=self.uid)
             self._update_task_change_tracker(task.uid, [])
             return
 
@@ -294,8 +294,8 @@ class Node:
             print(f"contact started on {self.uid} with {contact.to} at {env.now}")
         # if random.random() > self.uncertainty:
         #     contact.end = env.now
-        else:
-            self._handshake(env, contact.to, contact.owlt)
+        # else:
+        self._handshake(env, contact.to, contact.owlt)
         while env.now < contact.end:
             # If the task table has been updated while we've been in this contact,
             # send that before sharing any more bundles as it may be of value to the

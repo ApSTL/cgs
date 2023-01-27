@@ -146,7 +146,7 @@ def init_space_nodes(
 			uncertainty=uncertainty,
 			scheduler=sched
 		)
-		n.scheduler.parent = n
+		n.scheduler.parent = n if scheduler else None
 		pub.subscribe(n.bundle_receive, str(n_uid) + "bundle")
 		pub.subscribe(n.task_table_receive, str(n_uid) + "task_table")
 		node_list.append(n)
@@ -305,6 +305,7 @@ def build_moc(cp, cpt, sats, gws, scheme: List = None):
 	)
 	moc.scheduler.parent = moc
 	pub.subscribe(moc.bundle_receive, str(SCHEDULER_ID) + "bundle")
+	pub.subscribe(moc.task_table_receive, str(SCHEDULER_ID) + "task_table")
 
 	return moc
 
