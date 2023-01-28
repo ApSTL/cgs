@@ -22,11 +22,11 @@ def get_fraction_of_first_pickups(results, first_pickup_ids):
 	return first_pickups_counter / len(pickup_ids)
 
 
-def plot_performance_metrics(schemes, uncertainties, schedulers, request_loads, metrics):
-	# plt.rcParams['axes.grid'] = True
+def plot_performance_metrics(
+		schemes, uncertainties, schedulers, request_loads, metrics, plot_layout, legend):
 	plt.style.use('_mpl-gallery')
-	fig, ax = plt.subplots(3, 3)
-	plt.subplots_adjust(left=0.05, bottom=0.07, right=0.96, top=0.93)
+	fig, ax = plt.subplots(plot_layout[0], plot_layout[1])
+	# plt.subplots_adjust(left=0.05, bottom=0.07, right=0.96, top=0.93)
 
 	for scheme, props in schemes.items():
 		for uncertainty, prop_un in uncertainties.items():
@@ -59,26 +59,10 @@ def plot_performance_metrics(schemes, uncertainties, schedulers, request_loads, 
 	# Add a legend at the top of the figure
 	fig.legend(
 		ax[0, 0].lines,
-		# ["Naive", "First", "CGS (PU)", "CGS (CGR)", "CGS (MSR)"],
-		# ["Reliability = 0.7", "Reliability = 0.8", "Reliability = 0.9", "Reliability = 1.0"],
-		[
-			"CGR @ 0.7 (central)",
-			"CGR @ 0.7 (decentral)",
-			"CGR @ 1.0 (central)",
-			"CGR @ 1.0 (decentral)",
-			"CGS @ 0.7 (central)",
-			"CGS @ 0.7 (decentral)",
-			"CGS @ 1.0 (central)",
-			"CGS @ 1.0 (decentral)"
-		],
+		legend,
 		loc='upper center',
-		# ncol=len(schemes),
 		ncol=len(uncertainties)
 	)
-
-	# for a in ax.flat:
-	# 	a.label_outer()
-
 	plt.show()
 
 
@@ -254,5 +238,18 @@ for scheme, uncertainty, scheduler, rsl in itertools.product(schemes, uncertaint
 	# 	get_fraction_of_first_pickups(results, first_pickup_ids[rsl])
 	# )
 #
-plot_performance_metrics(schemes, uncertainties, centralisations, rsls, metrics)
+# legend = ["Naive", "First", "CGS (PU)", "CGS (CGR)", "CGS (MSR)"],
+# legend = ["Reliability = 0.7", "Reliability = 0.8", "Reliability = 0.9", "Reliability = 1.0"],
+legend = [
+	"CGR @ 0.7 (central)",
+	"CGR @ 0.7 (decentral)",
+	"CGR @ 1.0 (central)",
+	"CGR @ 1.0 (decentral)",
+	"CGS @ 0.7 (central)",
+	"CGS @ 0.7 (decentral)",
+	"CGS @ 1.0 (central)",
+	"CGS @ 1.0 (decentral)"
+]
+plot_performance_metrics(
+	schemes, uncertainties, centralisations, rsls, metrics, (3, 3), legend)
 # plot_first_pickups(schemes, first_pu_frac, rsls)
