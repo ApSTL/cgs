@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import random
+random.seed(0)
 import sys
 import json
 import cProfile
@@ -12,6 +13,8 @@ from copy import deepcopy
 import simpy
 from pubsub import pub
 
+import node
+node.random = random
 from node import Node
 from routing import Contact, cgr_yens
 from scheduling import Scheduler, Request
@@ -316,7 +319,6 @@ def main(inputs_, scheme: List = None, uncertainty: float = 1.0, scheduler: int 
 
 	"""
 	pub.unsubAll()
-	random.seed(0)
 
 	# Time for the clean network to reach a steady state
 	warm_up = 10800
