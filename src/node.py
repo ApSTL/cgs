@@ -188,7 +188,7 @@ class Node:
         self._update_task_change_tracker(task.uid, [])
 
     # *** CONTACT HANDLING ***
-    def contact_controller(self, env):
+    def contact_controller(self, env, random_):
         """Generator that iterates over every contact in which this node is the sender.
 
         Iterates over the contacts in which self is the sending node and invokes the
@@ -206,7 +206,7 @@ class Node:
             if next_contact.to in self._targets:
                 self._target_contact_procedure(env.now, next_contact.to)
             else:
-                env.process(self._node_contact_procedure(env, next_contact))
+                env.process(self._node_contact_procedure(env, next_contact, random_))
 
     def _target_contact_procedure(self, t_now, target):
         """Procedure to follow if we're in contact w/ a Target node.
@@ -285,14 +285,15 @@ class Node:
             bundle.route = task.del_path
         pub.sendMessage("bundle_acquired", b=bundle)
 
-    def _node_contact_procedure(self, env, contact):
+    def _node_contact_procedure(self, env, contact, random_):
         """
         Carry out the contact with a neighbouring node. This involves a handshake (if
         applicable/possible), sending of data and closing down contact
         """
         if DEBUG:
             print(f"contact started on {self.uid} with {contact.to} at {env.now}")
-        if random.random() > self.uncertainty:
+        rand = random_.random()
+        if rand > self.uncertainty:
             contact.end = env.now
         else:
             self._handshake(env, contact.to, contact.owlt)

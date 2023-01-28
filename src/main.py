@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import random
-random.seed(0)
 import sys
 import json
 import cProfile
@@ -13,8 +12,6 @@ from copy import deepcopy
 import simpy
 from pubsub import pub
 
-import node
-node.random = random
 from node import Node
 from routing import Contact, cgr_yens
 from scheduling import Scheduler, Request
@@ -319,6 +316,9 @@ def main(inputs_, scheme: List = None, uncertainty: float = 1.0, scheduler: int 
 
 	"""
 	pub.unsubAll()
+	# import node
+	random.seed(0)
+	# node.random = random
 
 	# Time for the clean network to reach a steady state
 	warm_up = 10800
@@ -409,7 +409,7 @@ def main(inputs_, scheme: List = None, uncertainty: float = 1.0, scheduler: int 
 	# contact or discovering more routes downstream
 	for node in [moc] + nodes:
 		env.process(node.bundle_assignment_controller(env))
-		env.process(node.contact_controller(env))
+		env.process(node.contact_controller(env, random))
 
 	end_sim = full_duration - (cool_down / 2)
 	env.run(until=end_sim)

@@ -42,8 +42,8 @@ def plot_performance_metrics(
 					)
 
 					# Pick-up latency, from Request to Pickup
-					x_lim = 1
-					x_tick = 0.2
+					x_lim = 2
+					x_tick = 0.5
 					ax[metric["row"], metric["col"]].set(
 						xlim=(0, x_lim), xticks=np.arange(0, x_lim + x_tick, x_tick),
 						ylim=(0, metric["max"]),
@@ -111,14 +111,14 @@ def plot_first_pickups(schemes, first_pickups, request_loads):
 filename_base = "results//decentral//results"
 # rsls = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
 # rsls.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
-rsls = [.1, .2, .3, .4, .5, .6, .7, .8, .9]
+rsls = [.1, .5, 1.0, 1.5, 2.0]
 
 schemes = {
 	# "naive": {"colour": "black"},
 	# "first": {"colour": "blue"},
 	# "cgs_cgr": {"colour": "red"},
 	"cgs_cgr_resource": {"colour": "green"},
-	"cgs_msr": {"colour": "orange"}
+	# "cgs_msr": {"colour": "orange"}
 }
 
 uncertainties = {
