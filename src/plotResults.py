@@ -22,7 +22,7 @@ def get_fraction_of_first_pickups(results, first_pickup_ids):
 	return first_pickups_counter / len(pickup_ids)
 
 
-def plot_performance_metrics(schemes, uncertainties, congestions, metrics):
+def plot_performance_metrics(schemes, uncertainties, schedulers, request_loads, metrics):
 	# plt.rcParams['axes.grid'] = True
 	plt.style.use('_mpl-gallery')
 	fig, ax = plt.subplots(3, 3)
@@ -30,33 +30,35 @@ def plot_performance_metrics(schemes, uncertainties, congestions, metrics):
 
 	for scheme, props in schemes.items():
 		for uncertainty, prop_un in uncertainties.items():
-			for metric in metrics:
-				ax[metric["row"], metric["col"]].plot(
-					congestions,
-					metric[scheme][uncertainty],
-					linewidth=2,
-					color=props["colour"],
-					linestyle=prop_un["linestyle"]
-				)
+			for scheduler, prop_sch in schedulers.items():
+				for metric in metrics:
+					ax[metric["row"], metric["col"]].plot(
+						request_loads,
+						metric[scheme][uncertainty][scheduler],
+						linewidth=2,
+						color=props["colour"],
+						linestyle=prop_un["linestyle"]
+					)
 
-				# Pick-up latency, from Request to Pickup
-				ax[metric["row"], metric["col"]].set(
-					xlim=(0, 2), xticks=np.arange(0, 2.5, 0.5),
-					ylim=(0, metric["max"]),
-					yticks=np.arange(0, metric["max"] + metric["tick"], metric["tick"])
-				)
+					# Pick-up latency, from Request to Pickup
+					ax[metric["row"], metric["col"]].set(
+						xlim=(0, 2), xticks=np.arange(0, 2.5, 0.5),
+						ylim=(0, metric["max"]),
+						yticks=np.arange(0, metric["max"] + metric["tick"], metric["tick"])
+					)
 
-				ax[metric["row"], metric["col"]].set_ylabel(metric["y_label"])
+					ax[metric["row"], metric["col"]].set_ylabel(metric["y_label"])
 
-	ax[2, 0].set_xlabel("Congestion")
-	ax[2, 1].set_xlabel("Congestion")
-	ax[2, 2].set_xlabel("Congestion")
+	ax[2, 0].set_xlabel("Request submission load (RSL)")
+	ax[2, 1].set_xlabel("Request submission load (RSL)")
+	ax[2, 2].set_xlabel("Request submission load (RSL)")
 
 	# Add a legend at the top of the figure
 	fig.legend(
 		ax[0, 0].lines,
 		# ["Naive", "First", "CGS (PU)", "CGS (CGR)", "CGS (MSR)"],
-		["Reliability = 0.7", "Reliability = 0.8", "Reliability = 0.9", "Reliability = 1.0"],
+		# ["Reliability = 0.7", "Reliability = 0.8", "Reliability = 0.9", "Reliability = 1.0"],
+		["CGS (CGR) - centralised", "CGS (CGR) - decentralised", "CGS (MSR) - centralised", "CGS (MSR) - decentralised"],
 		loc='upper center',
 		# ncol=len(schemes),
 		ncol=len(uncertainties)
@@ -68,13 +70,13 @@ def plot_performance_metrics(schemes, uncertainties, congestions, metrics):
 	plt.show()
 
 
-def plot_first_pickups(schemes, first_pickups, congestions):
+def plot_first_pickups(schemes, first_pickups, request_loads):
 	plt.style.use('_mpl-gallery')
 	fig, ax = plt.subplots(1, 1)
 
 	for scheme, props in schemes.items():
 		ax.plot(
-			congestions,
+			request_loads,
 			first_pickups[scheme][1.0],
 			linewidth=2,
 			color=props["colour"],
@@ -88,7 +90,7 @@ def plot_first_pickups(schemes, first_pickups, congestions):
 
 		ax.set_ylabel("Fraction of first pickups")
 
-	ax.set_xlabel("Congestion")
+	ax.set_xlabel("Request submission load (RSL)")
 	plt.subplots_adjust(left=0.11, bottom=0.1, right=0.95, top=0.89)
 
 	# Add a legend at the top of the figure
@@ -108,16 +110,17 @@ def plot_first_pickups(schemes, first_pickups, congestions):
 	plt.show()
 
 
-filename_base = "results//nominal//results"
+# filename_base = "results//nominal//results"
 # filename_base = "results//uncertainty//results"
-congestions = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
-congestions.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
-# congestions = [0.1]
+filename_base = "results//decentral//results"
+# rsls = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
+# rsls.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
+rsls = [1.0]
 
 schemes = {
-	"naive": {"colour": "black"},
-	"first": {"colour": "blue"},
-	"cgs_cgr": {"colour": "red"},
+	# "naive": {"colour": "black"},
+	# "first": {"colour": "blue"},
+	# "cgs_cgr": {"colour": "red"},
 	"cgs_cgr_resource": {"colour": "green"},
 	"cgs_msr": {"colour": "orange"}
 }
@@ -127,6 +130,11 @@ uncertainties = {
 	# 0.8: {"linestyle": "dashdot"},
 	# 0.9: {"linestyle": "dashed"},
 	1.0: {"linestyle": "solid"}
+}
+
+centralisations = {
+	# 0: {"linestyle": "solid"},
+	1: {"linestyle": "dashed"}
 }
 
 request_latency = {
@@ -178,57 +186,61 @@ for metric in metrics:
 	for scheme in schemes:
 		metric[scheme] = {}
 		for uncertainty in uncertainties:
-			metric[scheme][uncertainty] = []
+			metric[scheme][uncertainty] = {}
+			for scheduler in centralisations:
+				metric[scheme][uncertainty][scheduler] = []
 
-first_pickup_ids = {}
-for con in congestions:
-	# filename = f"{filename_base}_{scheme}_{uncertainty}_{con}"
-	filename = f"{filename_base}_first_{con}"
-	first_results = pickle.load(open(filename, "rb"))
+# first_pickup_ids = {}
+# for rsl in rsls:
+# 	# filename = f"{filename_base}_{scheme}_{uncertainty}_{rsl}"
+# 	filename = f"{filename_base}_first_{rsl}"
+# 	first_results = pickle.load(open(filename, "rb"))
+#
+# 	# Dict showing the time at which the pickup occurred (value) for each request (key)
+# 	first_pickup_ids[rsl] = {
+# 		b.task.requests[0].uid: b.created_at
+# 		for b in first_results.get_bundles_delivered_in_active_period()
+# 	}
 
-	# Dict showing the time at which the pickup occurred (value) for each request (key)
-	first_pickup_ids[con] = {
-		b.task.requests[0].uid: b.created_at
-		for b in first_results.get_bundles_delivered_in_active_period()
-	}
-
-# for scheme, con in itertools.product(schemes, congestions):
-for scheme, uncertainty, con in itertools.product(schemes, uncertainties, congestions):
-	# filename = f"{filename_base}_{scheme}_{uncertainty}_{con}"
-	filename = f"{filename_base}_{scheme}_{con}"
+# for scheme, rsl in itertools.product(schemes, rsls):
+# for scheme, uncertainty, rsl in itertools.product(schemes, uncertainties, rsls):
+for scheme, uncertainty, scheduler, rsl in itertools.product(schemes, uncertainties, centralisations, rsls):
+	# filename = f"{filename_base}_{scheme}_{uncertainty}_{scheduler}_{rsl}"
+	# filename = f"{filename_base}_{scheme}_{uncertainty}_{rsl}"
+	filename = f"{filename_base}_{scheme}_{rsl}"
 	results = pickle.load(open(filename, "rb"))
 
-	request_latency[scheme][uncertainty].append(mean(results.request_latencies) / 3600)
-	task_latency[scheme][uncertainty].append(mean(results.pickup_latencies_delivered) / 3600)
-	bundle_latency[scheme][uncertainty].append(mean(results.delivery_latencies) / 3600)
+	request_latency[scheme][uncertainty][scheduler].append(mean(results.request_latencies) / 3600)
+	task_latency[scheme][uncertainty][scheduler].append(mean(results.pickup_latencies_delivered) / 3600)
+	bundle_latency[scheme][uncertainty][scheduler].append(mean(results.delivery_latencies) / 3600)
 
-	request_ratio[scheme][uncertainty].append(results.request_delivery_ratio)
-	task_ratio[scheme][uncertainty].append(results.task_delivery_ratio)
-	# delivery_ratio[scheme][uncertainty].append(results.bundle_delivery_ratio)
-	hop_count[scheme][uncertainty].append(results.hop_count_average_delivered)
+	request_ratio[scheme][uncertainty][scheduler].append(results.request_delivery_ratio)
+	task_ratio[scheme][uncertainty][scheduler].append(results.task_delivery_ratio)
+	# delivery_ratio[scheme][uncertainty][scheduler].append(results.bundle_delivery_ratio)
+	hop_count[scheme][uncertainty][scheduler].append(results.hop_count_average_delivered)
 
-	requests_accepted[scheme][uncertainty].append(results.tasks_processed_count / 1000)
-	# requests_rejected[scheme][uncertainty].append(results.requests_rejected_count / 1000)
-	requests_failed[scheme][uncertainty].append(results.requests_failed_count / 1000)
-	requests_delivered[scheme][uncertainty].append(results.requests_delivered_count / 1000)
+	requests_accepted[scheme][uncertainty][scheduler].append(results.tasks_processed_count / 1000)
+	# requests_rejected[scheme][uncertainty][scheduler].append(results.requests_rejected_count / 1000)
+	requests_failed[scheme][uncertainty][scheduler].append(results.requests_failed_count / 1000)
+	requests_delivered[scheme][uncertainty][scheduler].append(results.requests_delivered_count / 1000)
 
-	request_latency["max"] = max(request_latency["max"], request_latency[scheme][uncertainty][-1])
-	task_latency["max"] = max(task_latency["max"], task_latency[scheme][uncertainty][-1])
-	bundle_latency["max"] = max(bundle_latency["max"], bundle_latency[scheme][uncertainty][-1])
+	request_latency["max"] = max(request_latency["max"], request_latency[scheme][uncertainty][scheduler][-1])
+	task_latency["max"] = max(task_latency["max"], task_latency[scheme][uncertainty][scheduler][-1])
+	bundle_latency["max"] = max(bundle_latency["max"], bundle_latency[scheme][uncertainty][scheduler][-1])
 
-	request_ratio["max"] = max(request_ratio["max"], request_ratio[scheme][uncertainty][-1])
-	task_ratio["max"] = max(task_ratio["max"], task_ratio[scheme][uncertainty][-1])
-	# delivery_ratio["max"] = max(delivery_ratio["max"], delivery_ratio[scheme][uncertainty][-1])
-	hop_count["max"] = max(hop_count["max"], hop_count[scheme][uncertainty][-1])
+	request_ratio["max"] = max(request_ratio["max"], request_ratio[scheme][uncertainty][scheduler][-1])
+	task_ratio["max"] = max(task_ratio["max"], task_ratio[scheme][uncertainty][scheduler][-1])
+	# delivery_ratio["max"] = max(delivery_ratio["max"], delivery_ratio[scheme][uncertainty][scheduler][-1])
+	hop_count["max"] = max(hop_count["max"], hop_count[scheme][uncertainty][scheduler][-1])
 
-	requests_accepted["max"] = max(requests_accepted["max"], requests_accepted[scheme][uncertainty][-1])
-	# requests_rejected["max"] = max(requests_rejected["max"], requests_rejected[scheme][uncertainty][-1])
-	requests_failed["max"] = max(requests_failed["max"], requests_failed[scheme][uncertainty][-1])
-	requests_delivered["max"] = max(requests_delivered["max"], requests_delivered[scheme][uncertainty][-1])
+	requests_accepted["max"] = max(requests_accepted["max"], requests_accepted[scheme][uncertainty][scheduler][-1])
+	# requests_rejected["max"] = max(requests_rejected["max"], requests_rejected[scheme][uncertainty][scheduler][-1])
+	requests_failed["max"] = max(requests_failed["max"], requests_failed[scheme][uncertainty][scheduler][-1])
+	requests_delivered["max"] = max(requests_delivered["max"], requests_delivered[scheme][uncertainty][scheduler][-1])
 
-	first_pu_frac[scheme][uncertainty].append(
-		get_fraction_of_first_pickups(results, first_pickup_ids[con])
-	)
+	# first_pu_frac[scheme][uncertainty].append(
+	# 	get_fraction_of_first_pickups(results, first_pickup_ids[rsl])
+	# )
 #
-plot_performance_metrics(schemes, uncertainties, congestions, metrics)
-# plot_first_pickups(schemes, first_pu_frac, congestions)
+plot_performance_metrics(schemes, uncertainties, centralisations, rsls, metrics)
+# plot_first_pickups(schemes, first_pu_frac, rsls)
