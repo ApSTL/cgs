@@ -37,12 +37,15 @@ def plot_performance_metrics(schemes, uncertainties, schedulers, request_loads, 
 						metric[scheme][uncertainty][scheduler],
 						linewidth=2,
 						color=props["colour"],
-						linestyle=prop_un["linestyle"]
+						linestyle=prop_un["linestyle"],
+						marker=prop_sch["marker"]
 					)
 
 					# Pick-up latency, from Request to Pickup
+					x_lim = 1
+					x_tick = 0.2
 					ax[metric["row"], metric["col"]].set(
-						xlim=(0, 2), xticks=np.arange(0, 2.5, 0.5),
+						xlim=(0, x_lim), xticks=np.arange(0, x_lim + x_tick, x_tick),
 						ylim=(0, metric["max"]),
 						yticks=np.arange(0, metric["max"] + metric["tick"], metric["tick"])
 					)
@@ -58,7 +61,16 @@ def plot_performance_metrics(schemes, uncertainties, schedulers, request_loads, 
 		ax[0, 0].lines,
 		# ["Naive", "First", "CGS (PU)", "CGS (CGR)", "CGS (MSR)"],
 		# ["Reliability = 0.7", "Reliability = 0.8", "Reliability = 0.9", "Reliability = 1.0"],
-		["CGS (CGR) - centralised", "CGS (CGR) - decentralised", "CGS (MSR) - centralised", "CGS (MSR) - decentralised"],
+		[
+			"CGR @ 0.7 (central)",
+			"CGR @ 0.7 (decentral)",
+			"CGR @ 1.0 (central)",
+			"CGR @ 1.0 (decentral)",
+			"CGS @ 0.7 (central)",
+			"CGS @ 0.7 (decentral)",
+			"CGS @ 1.0 (central)",
+			"CGS @ 1.0 (decentral)"
+		],
 		loc='upper center',
 		# ncol=len(schemes),
 		ncol=len(uncertainties)
@@ -115,7 +127,7 @@ def plot_first_pickups(schemes, first_pickups, request_loads):
 filename_base = "results//decentral//results"
 # rsls = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
 # rsls.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
-rsls = [1.0]
+rsls = [.1, .2, .3, .4, .5, .6, .7, .8, .9]
 
 schemes = {
 	# "naive": {"colour": "black"},
@@ -126,15 +138,15 @@ schemes = {
 }
 
 uncertainties = {
-	# 0.7: {"linestyle": "dotted"},
+	0.7: {"linestyle": "dotted"},
 	# 0.8: {"linestyle": "dashdot"},
 	# 0.9: {"linestyle": "dashed"},
 	1.0: {"linestyle": "solid"}
 }
 
 centralisations = {
-	# 0: {"linestyle": "solid"},
-	1: {"linestyle": "dashed"}
+	"central": {"marker": '.'},
+	"decentral": {"marker": 'x'}
 }
 
 request_latency = {
@@ -207,7 +219,7 @@ for metric in metrics:
 for scheme, uncertainty, scheduler, rsl in itertools.product(schemes, uncertainties, centralisations, rsls):
 	# filename = f"{filename_base}_{scheme}_{uncertainty}_{scheduler}_{rsl}"
 	# filename = f"{filename_base}_{scheme}_{uncertainty}_{rsl}"
-	filename = f"{filename_base}_{scheme}_{rsl}"
+	filename = f"{filename_base}_{scheme}_{uncertainty}_{scheduler}_{rsl}"
 	results = pickle.load(open(filename, "rb"))
 
 	request_latency[scheme][uncertainty][scheduler].append(mean(results.request_latencies) / 3600)
