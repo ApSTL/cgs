@@ -29,9 +29,8 @@ class Analytics:
 		self.tasks[t.uid] = t
 
 	def reschedule_task(self, task, t, node):
-		self.tasks[task].status = "rescheduled"
-		self.tasks[task].rescheduled_at = t
-		self.tasks[task].rescheduled_by = node
+		if self.tasks[task].status not in ["delivered"]:
+			self.tasks[task].rescheduled(t, node)
 
 	def fail_task(self, task, t, on):
 		# If this task has already been fulfilled elsewhere, don't set to failed
@@ -54,13 +53,13 @@ class Analytics:
 			return
 		self.bundles_delivered.append(b)
 		self.requests[b.task.request_ids[0]].status = "delivered"
-		self.tasks[b.task.uid].delivered(b.delivered_at, b.previous_node, b.current)
+		self.tasks[b.task_id].delivered(b.delivered_at, b.previous_node, b.current)
 
 	def drop_bundle(self, b):
 		self.bundles_failed.append(b)
 		# There's a chance the task to which this bundle relates, has already been
 		# "delivered", so check first and only update if it's the first time
-		if self.tasks[b.task_id].status != "failed":
+		if self.tasks[b.task_id].status not in ("failed", "rescheduled", "delivered"):
 			self.fail_task(b.task.uid, b.dropped_at, b.current)
 
 	# *************************** LATENCIES *******************************

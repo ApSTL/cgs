@@ -103,6 +103,8 @@ class Task:
             return True
         if self.status == "acquired" and other.status != "pending":
             return True
+        if other.status == "delivered":
+            return True
         return False
 
     def __repr__(self):
