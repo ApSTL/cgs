@@ -118,7 +118,7 @@ def init_space_nodes(
 		scheme: List = None
 ) -> List[Node]:
 	if scheme is None:
-		scheme = [True, True, True, True, True]
+		scheme = [True, True, True, True, False]
 	node_ids = [x for x in nodes]
 	# TODO more generalised way to do this??
 	node_ids.append(SCHEDULER_ID)
@@ -135,7 +135,7 @@ def init_space_nodes(
 				define_pickup=scheme[1],
 				valid_delivery=scheme[2],
 				resource_aware=scheme[3],
-				define_delivery=scheme[4]
+				define_delivery=False  # Don't want to use MSR for rescheduled tasks
 			) if scheduler else None
 
 		n = Node(
