@@ -107,13 +107,15 @@ class Node:
             request = self.request_queue.pop(0)
             self.process_request(request, curr_time)
 
-    def process_request(self, request: Request, curr_time: int | float):
+    def process_request(
+            self, request: Request, curr_time: int | float, reschedule: bool = False):
         """Process a single request resulting in a Task being added to the task table.
 
         In the event that a request cannot be fulfilled, it gets added to the failed list
         Args:
             :param request: Request object
             :param curr_time: Current time
+            :param reschedule: Flag to show whether, or not, this is a Task reschedule
         """
         self.handled_requests.append(request)
 
@@ -151,9 +153,10 @@ class Node:
         # print(f"No task was created for request {request.uid} as either acquisition "
         #    f"or delivery wasn't feasible")
         # TODO Separate the "failed" requests from those that are rejected up front
-        request.status = "failed"
-        # self.rejected_requests.append(request)
-        self.failed_requests.append(request)
+        if not reschedule:
+            request.status = "rejected"
+            self.rejected_requests.append(request)
+            # self.failed_requests.append(request)
         return False
 
     def _task_already_servicing_request(self, request: Request) -> Task | None:
@@ -177,7 +180,7 @@ class Node:
                 return task
 
     def task_rescheduling(self, task, t_now):
-        if self.process_request(task.requests[0], t_now):
+        if self.process_request(task.requests[0], t_now, True):
             task.rescheduled(t_now, self.uid)
             pub.sendMessage("task_reschedule", task=task.uid, t=t_now, node=self.uid)
             self._update_task_change_tracker(task.uid, [])
@@ -218,24 +221,26 @@ class Node:
         for_reschedule = []
         for task_id, task in self.task_table.items():
 
-            # If the task is not needing to be executed
+            # If the task is already handled, skip
             if task.status != "pending":
                 continue
 
-            # If the task has been assigned to different node, skip
+            # If we are not the Task owner, skip
             if task.assignee and task.assignee != self.uid:
                 continue
 
+            # If the task has already expired, set it to be "failed" and skip
             if task.deadline_acquire < t_now:
                 task.failed(t_now, self.uid)
                 pub.sendMessage("task_failed", task=task_id, t=t_now, on=self.uid)
                 self._update_task_change_tracker(task.uid, [])
                 continue
 
-            # If the task has a LATER scheduled pickup time, skip
+            # If the task has a LATER scheduled pickup time than now, skip
             if task.pickup_time and task.pickup_time > t_now:
                 continue
 
+            # If the task had an earlier pickup time, and we can reschedule, do it.
             # TODO May need to be a little flexible on this, rather than immediately
             #  going to rescheduling
             if task.pickup_time < t_now and self.scheduler:
@@ -246,10 +251,8 @@ class Node:
             if task.target != target:
                 continue
 
-            # If there's insufficient buffer capacity to complete the task, and the
-            # task has been scheduled to be acquired by us, at this time, set the task
-            # to "redundant" so it can be rescheduled. Otherwise, just skip so that it
-            # can perhaps be handled later, if still pending
+            # If there's insufficient buffer capacity to complete the task, and we can
+            # reschedule, do it, and skip
             if self.buffer.capacity_remaining < task.size:
                 if self.scheduler:
                     for_reschedule.append(task)

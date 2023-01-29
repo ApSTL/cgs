@@ -8,8 +8,8 @@ class Analytics:
 	def __init__(self, sim_time, ignore_start=0, ignore_end=0, inputs=None):
 		self.start = ignore_start
 		self.end = sim_time - ignore_end
+
 		self.requests = {}
-		self.requests_duplicated_count = 0
 
 		self.tasks = {}
 
@@ -29,12 +29,13 @@ class Analytics:
 		self.tasks[t.uid] = t
 
 	def reschedule_task(self, task, t, node):
-		if self.tasks[task].status not in ["delivered"]:
-			self.tasks[task].rescheduled(t, node)
+		if self.tasks[task].status in ["delivered"]:
+			return
+		self.tasks[task].rescheduled(t, node)
 
 	def fail_task(self, task, t, on):
 		# If this task has already been fulfilled elsewhere, don't set to failed
-		if self.tasks[task].status == "delivered":
+		if self.tasks[task].status in ["delivered", "rescheduled"]:
 			return
 		self.tasks[task].failed(t, on)
 		self.requests[self.tasks[task].request_ids[0]].status = "failed"
@@ -43,13 +44,14 @@ class Analytics:
 		self.bundles.append(b)
 		# There's a chance the task to which this bundle relates, has already been
 		# "acquired", so check first and only update if it's the first time
-		if self.tasks[b.task_id].status != "acquired":
-			self.requests[b.task.request_ids[0]].status = "acquired"
-			self.tasks[b.task_id].acquired(b.created_at, b.src)
+		if self.tasks[b.task_id].status in ["acquired", "delivered", "rescheduled"]:
+			return
+		self.requests[b.task.request_ids[0]].status = "acquired"
+		self.tasks[b.task_id].acquired(b.created_at, b.src)
 
 	def deliver_bundle(self, b):
 		# If the request has already been delivered, skip
-		if self.requests[b.task.request_ids[0]].status == "delivered":
+		if self.requests[b.task.request_ids[0]].status in ["delivered"]:
 			return
 		self.bundles_delivered.append(b)
 		self.requests[b.task.request_ids[0]].status = "delivered"
@@ -59,8 +61,9 @@ class Analytics:
 		self.bundles_failed.append(b)
 		# There's a chance the task to which this bundle relates, has already been
 		# "delivered", so check first and only update if it's the first time
-		if self.tasks[b.task_id].status not in ("failed", "rescheduled", "delivered"):
-			self.fail_task(b.task.uid, b.dropped_at, b.current)
+		if self.tasks[b.task_id].status in ("failed", "rescheduled", "delivered"):
+			return
+		self.fail_task(b.task.uid, b.dropped_at, b.current)
 
 	# *************************** LATENCIES *******************************
 	@property
@@ -149,26 +152,34 @@ class Analytics:
 
 	def get_delivered_requests_in_active_period(self):
 		return [
-			r for r in self.requests.values()
-			if self.start <= r.time_created <= self.end
-			and r.status == "delivered"
+			r for r in self.get_all_requests_in_active_period()
+			if r.status == "delivered"
+		]
+
+	def get_rejected_requests_in_active_period(self):
+		return [
+			r for r in self.get_all_requests_in_active_period()
+			if r.status == "rejected"
 		]
 
 	def get_failed_requests_in_active_period(self):
 		return [
-			r for r in self.requests.values()
-			if self.start <= r.time_created <= self.end
-			and r.status == "failed"
+			r for r in self.get_all_requests_in_active_period()
+			if r.status == "failed"
 		]
 
 	@property
 	def requests_submitted_count(self):
 		return len(self.get_all_requests_in_active_period())
 
+	def requests_accepted_count(self):
+		return self.requests_submitted_count - self.requests_rejected_count
+
 	@property
 	def requests_rejected_count(self):
 		# The number of requests that were not converted into tasks
-		return self.requests_submitted_count - self.tasks_processed_count
+		# return self.requests_submitted_count - self.tasks_processed_count
+		return len(self.get_rejected_requests_in_active_period())
 
 	@property
 	def requests_delivered_count(self):
@@ -178,7 +189,8 @@ class Analytics:
 	def requests_failed_count(self):
 		# the number of requests that were converted into tasks, but not delivered
 		# return len(self.get_failed_requests_in_active_period())
-		return self.tasks_processed_count - self.requests_delivered_count
+		# return self.tasks_processed_count - self.requests_delivered_count
+		return len(self.get_failed_requests_in_active_period())
 
 	@property
 	def request_delivery_ratio(self):

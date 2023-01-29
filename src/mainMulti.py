@@ -20,7 +20,7 @@ schemes = {
 	# "naive":              [False, False, False, False, False],
 	# "first":              [True,  True,  False, False, False],
 	# "cgs_cgr":            [True,  True,  True,  False, False],
-	"cgs_cgr_resource":   [True,  True,  True,  True,  False],
+	# "cgs_cgr_resource":   [True,  True,  True,  True,  False],
 	"cgs_msr":            [True,  True,  True,  True,  True],
 }
 
@@ -28,7 +28,7 @@ schemes = {
 uncertainties = [0.7, 1.0]
 
 # congestions = [.1, .2, .3, .4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.2, 1.4, 1.6, 1.8, 2.]
-congestions = [.1, 0.5, 1.0, 1.5, 2.]
+congestions = [0.5, 1.0]
 
 
 # Scheduling capabilities can either be:

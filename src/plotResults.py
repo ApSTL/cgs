@@ -106,19 +106,24 @@ def plot_first_pickups(schemes, first_pickups, request_loads):
 	plt.show()
 
 
+def define_metrics():
+	return metrics
+
+
 # filename_base = "results//nominal//results"
 # filename_base = "results//uncertainty//results"
 filename_base = "results//decentral//results"
 # rsls = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
 # rsls.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
-rsls = [.1, .5, 1.0, 1.5, 2.0]
+# rsls = [.1, .5, 1.0, 1.5, 2.0]
+rsls = [1.0, 1.5, 2.0]
 
 schemes = {
 	# "naive": {"colour": "black"},
 	# "first": {"colour": "blue"},
 	# "cgs_cgr": {"colour": "red"},
-	"cgs_cgr_resource": {"colour": "green"},
-	# "cgs_msr": {"colour": "orange"}
+	# "cgs_cgr_resource": {"colour": "green"},
+	"cgs_msr": {"colour": "orange"}
 }
 
 uncertainties = {
@@ -129,7 +134,7 @@ uncertainties = {
 }
 
 centralisations = {
-	"central": {"marker": '.'},
+	"central": {"marker": 'o'},
 	"decentral": {"marker": 'x'}
 }
 
@@ -215,7 +220,7 @@ for scheme, uncertainty, scheduler, rsl in itertools.product(schemes, uncertaint
 	# delivery_ratio[scheme][uncertainty][scheduler].append(results.bundle_delivery_ratio)
 	hop_count[scheme][uncertainty][scheduler].append(results.hop_count_average_delivered)
 
-	requests_accepted[scheme][uncertainty][scheduler].append(results.tasks_processed_count / 1000)
+	requests_accepted[scheme][uncertainty][scheduler].append(results.requests_accepted_count / 1000)
 	# requests_rejected[scheme][uncertainty][scheduler].append(results.requests_rejected_count / 1000)
 	requests_failed[scheme][uncertainty][scheduler].append(results.requests_failed_count / 1000)
 	requests_delivered[scheme][uncertainty][scheduler].append(results.requests_delivered_count / 1000)

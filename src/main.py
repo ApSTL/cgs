@@ -81,11 +81,6 @@ def requests_generator(
 		moc.request_received(request)
 		request = moc.request_queue.pop(0)
 		success = moc.process_request(request, env.now)
-			# if success:
-			# 	break
-			# if len(sources_tried) == len(sources):
-			# 	num_fails += 1
-			# 	print(f"Number of fully failed requests is {num_fails}")
 
 
 def bundle_generator(env, sources, destinations):
