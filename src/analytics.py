@@ -172,6 +172,7 @@ class Analytics:
 	def requests_submitted_count(self):
 		return len(self.get_all_requests_in_active_period())
 
+	@property
 	def requests_accepted_count(self):
 		return self.requests_submitted_count - self.requests_rejected_count
 

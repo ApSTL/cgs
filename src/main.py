@@ -49,7 +49,7 @@ def get_request_inter_arrival_time(sim_time, outflow, congestion, size) -> int:
 
 def requests_generator(
 		env, sources, sinks, moc, inter_arrival_time, size, priority,
-		acquire_time, deliver_time
+		acquire_time, deliver_time, random_
 ):
 	"""
 	Generate requests that get submitted to a scheduler where they are processed into
@@ -58,20 +58,13 @@ def requests_generator(
 	"""
 	# num_fails = 0
 	while True:
-		yield env.timeout(random.expovariate(1 / inter_arrival_time))
-		# sources_tried = set()
-		# while len(sources_tried) < len(sources):
-			# Keep trying different sources (targets) at random until one of them
-			# results in a successful task creation
-			# source = random.choice(
-			# 	[s for s in sources.values() if s.uid not in sources_tried])
-			# sources_tried.add(source.uid)
-		source = random.choice([s for s in sources.values()])
+		yield env.timeout(random_.expovariate(1 / inter_arrival_time))
+		source = random_.choice([s for s in sources.values()])
 		acquire_deadline = env.now + acquire_time if acquire_time else sys.maxsize
 
 		request = Request(
 			source.uid,
-			destination=random.choice(sinks),
+			destination=random_.choice(sinks),
 			data_volume=size,
 			priority=priority,
 			deadline_acquire=acquire_deadline,
@@ -395,7 +388,8 @@ def main(inputs_, scheme: List = None, uncertainty: float = 1.0, scheduler: int 
 		inputs_.traffic.size,
 		inputs_.traffic.priority,
 		inputs_.traffic.max_time_to_acquire,
-		inputs_.traffic.max_time_to_deliver
+		inputs_.traffic.max_time_to_deliver,
+		random
 	))
 
 	# Set up the Simpy Processes on each of the Nodes. These are effectively the

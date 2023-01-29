@@ -115,8 +115,8 @@ def define_metrics():
 filename_base = "results//decentral//results"
 # rsls = [round(x, 1) for x in np.linspace(0.1, 0.9, 9)]
 # rsls.extend([round(x, 1) for x in np.linspace(1.0, 2.0, 6)])
-# rsls = [.1, .5, 1.0, 1.5, 2.0]
-rsls = [1.0, 1.5, 2.0]
+rsls = [.1, .5, 1.0, 1.5, 2.0]
+# rsls = [1.0, 1.5, 2.0]
 
 schemes = {
 	# "naive": {"colour": "black"},
@@ -210,6 +210,10 @@ for scheme, uncertainty, scheduler, rsl in itertools.product(schemes, uncertaint
 	# filename = f"{filename_base}_{scheme}_{uncertainty}_{rsl}"
 	filename = f"{filename_base}_{scheme}_{uncertainty}_{scheduler}_{rsl}"
 	results = pickle.load(open(filename, "rb"))
+	
+	print(
+		f"num requests submitted: {results.requests_submitted_count}"
+	)
 
 	request_latency[scheme][uncertainty][scheduler].append(mean(results.request_latencies) / 3600)
 	task_latency[scheme][uncertainty][scheduler].append(mean(results.pickup_latencies_delivered) / 3600)
