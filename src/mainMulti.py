@@ -47,7 +47,7 @@ congestions = [
 ]
 
 
-filename = "input_files//sim_polar_simple.json"
+filename = "input_files//walker_delta_16.json"
 results_file_base = "results//multi//results"
 with open(filename, "rb") as read_content:
 	inputs = json.load(read_content, object_hook=lambda d: SimpleNamespace(**d))
